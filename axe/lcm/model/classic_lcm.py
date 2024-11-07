@@ -7,7 +7,7 @@ import torch.nn.functional as F
 
 OUT_WIDTH = 4
 
-class ClassicModel(nn.Module):
+class ClassicLCM(nn.Module):
     def __init__(
         self,
         num_feats: int,

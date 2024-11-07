@@ -1,5 +1,5 @@
 import random
-from typing import List, Optional, override
+from typing import Optional, override
 from itertools import combinations_with_replacement
 
 import numpy as np
@@ -20,7 +20,6 @@ class LSMDataGenerator:
     ) -> None:
         self.precision = precision
         self.bounds = bounds
-        self.max_levels = bounds.max_considered_levels
         self.cf = Cost(max_levels=bounds.max_considered_levels)
 
     def _sample_size_ratio(self) -> int:
@@ -80,10 +79,10 @@ class LSMDataGenerator:
 
         return lsm
 
-    def sample_workload(self, dimensions: int) -> Workload:
+    def sample_workload(self) -> Workload:
         # See stackoverflow thread for why the simple solution is not uniform
         # https://stackoverflow.com/questions/8064629
-        workload = np.around(np.random.rand(dimensions - 1), self.precision)
+        workload = np.around(np.random.rand(3), self.precision)
         workload = np.concatenate((workload, np.array([0, 1])))
         workload = np.sort(workload)
 
@@ -91,15 +90,13 @@ class LSMDataGenerator:
         return Workload(*workload)
 
 
-class TieringGenerator(LSMDataGenerator):
+class TieringGen(LSMDataGenerator):
     def __init__(
         self,
         bounds: LSMBounds,
-        policies: List[Policy] = [Policy.Tiering, Policy.Leveling],
         **kwargs,
     ):
         super().__init__(bounds, **kwargs)
-        self.policies = policies
 
     @override
     def sample_design(
@@ -115,15 +112,13 @@ class TieringGenerator(LSMDataGenerator):
         return lsm
 
 
-class LevelingGenerator(LSMDataGenerator):
+class LevelingGen(LSMDataGenerator):
     def __init__(
         self,
         bounds: LSMBounds,
-        policies: List[Policy] = [Policy.Tiering, Policy.Leveling],
         **kwargs,
     ):
         super().__init__(bounds, **kwargs)
-        self.policies = policies
 
     @override
     def sample_design(
@@ -139,7 +134,7 @@ class LevelingGenerator(LSMDataGenerator):
         return lsm
 
 
-class ClassicGenerator(LSMDataGenerator):
+class ClassicGen(LSMDataGenerator):
     def __init__(
         self,
         bounds: LSMBounds,
@@ -160,7 +155,7 @@ class ClassicGenerator(LSMDataGenerator):
         return lsm
 
 
-class KHybridGenerator(LSMDataGenerator):
+class KapacityGen(LSMDataGenerator):
     def __init__(self, bounds: LSMBounds, **kwargs):
         super().__init__(bounds, **kwargs)
 
@@ -176,7 +171,7 @@ class KHybridGenerator(LSMDataGenerator):
         T = design.size_ratio
         levels = int(self.cf.L(design, system, ceil=True))
         k = np.random.randint(low=1, high=int(T), size=(levels))
-        remaining = np.ones(self.max_levels - len(k))
+        remaining = np.ones(self.bounds.max_considered_levels - len(k))
         k = np.concatenate([k, remaining])
         design = LSMDesign(
             bits_per_elem=h, size_ratio=T, policy=Policy.Kapacity, kapacity=k.tolist()
@@ -185,7 +180,7 @@ class KHybridGenerator(LSMDataGenerator):
         return design
 
 
-class QCostGenerator(LSMDataGenerator):
+class QHybridGen(LSMDataGenerator):
     def __init__(self, bounds: LSMBounds, **kwargs):
         super().__init__(bounds, **kwargs)
 
@@ -208,7 +203,7 @@ class QCostGenerator(LSMDataGenerator):
         return design
 
 
-class YZCostGenerator(LSMDataGenerator):
+class FluidLSMGen(LSMDataGenerator):
     def __init__(self, bounds: LSMBounds, **kwargs):
         super().__init__(bounds, **kwargs)
 
@@ -230,3 +225,20 @@ class YZCostGenerator(LSMDataGenerator):
         )
 
         return design
+
+
+def build_data_gen(policy: Policy, bounds: LSMBounds, **kwargs) -> LSMDataGenerator:
+    generators = {
+        Policy.Classic: ClassicGen,
+        Policy.Tiering: TieringGen,
+        Policy.Leveling: LevelingGen,
+        Policy.QHybrid: QHybridGen,
+        Policy.Fluid: FluidLSMGen,
+        Policy.Kapacity: KapacityGen,
+    }
+    generator_class = generators.get(policy, None)
+    if generator_class is None:
+        raise KeyError
+    generator = generator_class(bounds, **kwargs)
+
+    return generator

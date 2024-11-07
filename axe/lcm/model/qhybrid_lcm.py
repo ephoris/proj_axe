@@ -5,35 +5,9 @@ from torch import nn
 import torch
 import torch.nn.functional as F
 
+OUT_WIDTH = 4
 
-class KapEmbedding(nn.Module):
-    """
-    Special embedding that creates separate embeddings for each K_i on each
-    level. Number of k's will dictate the number of linear layers.
-    """
-
-    def __init__(self, input_size: int, embedding_size: int, num_k: int) -> None:
-        super().__init__()
-        embeddings = nn.ModuleList()
-        for _ in range(num_k):
-            embeddings.append(nn.Linear(input_size, embedding_size))
-        self.num_k = num_k
-        self.embeddings = embeddings
-
-    def _forward_impl(self, x: Tensor) -> Tensor:
-        out = []
-        for idx in range(self.num_k):
-            out.append(self.embeddings[idx](x[:, idx, :]))
-
-        return torch.stack(out, dim=1)
-
-    def forward(self, x: Tensor) -> Tensor:
-        out = self._forward_impl(x)
-
-        return out
-
-
-class KapModel(nn.Module):
+class QHybridLCM(nn.Module):
     def __init__(
         self,
         num_feats: int,
@@ -42,16 +16,15 @@ class KapModel(nn.Module):
         hidden_length: int = 1,
         hidden_width: int = 32,
         dropout_percentage: float = 0,
-        max_levels: int = 20,
         decision_dim: int = 64,
-        norm_layer: Optional[Callable[..., nn.Module]] = None,
+        norm_layer: Optional[Callable[..., nn.Module]] = None
     ) -> None:
         super().__init__()
-        width = (max_levels + 1) * embedding_size + num_feats - (max_levels + 1)
+        width = (num_feats - 2) + (2 * embedding_size)
         if norm_layer is None:
             norm_layer = nn.BatchNorm1d
         self.t_embedding = nn.Linear(capacity_range, embedding_size)
-        self.k_embedding = nn.Linear(capacity_range, embedding_size)
+        self.q_embedding = nn.Linear(capacity_range, embedding_size)
 
         self.in_norm = norm_layer(width)
         self.in_layer = nn.Linear(width, hidden_width)
@@ -71,7 +44,6 @@ class KapModel(nn.Module):
 
         self.capacity_range = capacity_range
         self.num_feats = num_feats
-        self.max_levels = max_levels
         self.decision_dim = decision_dim
 
         for module in self.modules():
@@ -79,7 +51,7 @@ class KapModel(nn.Module):
                 nn.init.xavier_normal_(module.weight)
 
     def _split_input(self, x: Tensor) -> Tuple[Tensor, Tensor, Tensor]:
-        categorical_bound = self.num_feats - (self.max_levels + 1)
+        categorical_bound = self.num_feats - 2
         feats = x[:, :categorical_bound]
         capacities = x[:, categorical_bound:]
 
@@ -90,21 +62,20 @@ class KapModel(nn.Module):
             capacities = torch.unflatten(capacities, 1, (-1, self.capacity_range))
 
         size_ratio = capacities[:, 0, :]
-        k_cap = capacities[:, 1:, :]
+        q_cap = capacities[:, 1, :]
 
-        return (feats, size_ratio, k_cap)
+        return (feats, size_ratio, q_cap)
 
     def _forward_impl(self, x: Tensor) -> Tensor:
-        feats, size_ratio, k_cap = self._split_input(x)
+        feats, size_ratio, q_cap = self._split_input(x)
 
         size_ratio = size_ratio.to(torch.float)
         size_ratio = self.t_embedding(size_ratio)
 
-        k_cap = k_cap.to(torch.float)
-        k_cap = self.k_embedding(k_cap)
-        k_cap = torch.flatten(k_cap, start_dim=1)
+        q_cap = q_cap.to(torch.float)
+        q_cap = self.q_embedding(q_cap)
 
-        inputs = torch.cat([feats, size_ratio, k_cap], dim=-1)
+        inputs = torch.cat([feats, size_ratio, q_cap], dim=-1)
 
         out = self.in_norm(inputs)
         out = self.in_layer(out)

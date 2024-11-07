@@ -6,7 +6,7 @@ import torch
 import torch.nn.functional as F
 
 
-class YZModel(nn.Module):
+class FluidLCM(nn.Module):
     def __init__(
         self,
         num_feats: int,
