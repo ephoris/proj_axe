@@ -17,10 +17,12 @@ class LSMDataGenerator:
         self,
         bounds: LSMBounds,
         precision: int = 3,
+        seed: int = 0,
     ) -> None:
         self.precision = precision
         self.bounds = bounds
         self.cf = Cost(max_levels=bounds.max_considered_levels)
+        np.random.seed(seed)
 
     def _sample_size_ratio(self) -> int:
         low, high = self.bounds.size_ratio_range

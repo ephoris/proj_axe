@@ -8,9 +8,11 @@ kCOST_HEADER = ["z0_cost", "z1_cost", "q_cost", "w_cost"]
 
 
 class LCMDataSchema:
-    def __init__(self, policy: Policy, bounds: LSMBounds, precision: int = 3) -> None:
+    def __init__(
+        self, policy: Policy, bounds: LSMBounds, precision: int = 3, seed: int = 0
+    ) -> None:
         self.cost: Cost = Cost(bounds.max_considered_levels)
-        self.gen = DataGen.build_data_gen(policy=policy, bounds=bounds)
+        self.gen = DataGen.build_data_gen(policy=policy, bounds=bounds, seed=seed)
 
         self.policy: Policy = policy
         self.bounds: LSMBounds = bounds
@@ -66,4 +68,3 @@ class LCMDataSchema:
             line[key] = val
 
         return line
-

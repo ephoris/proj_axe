@@ -19,6 +19,7 @@ class CreateLCMData:
         self.disable_tqdm: bool = cfg["log"]["disable_tqdm"]
         self.policy: Policy = getattr(Policy, cfg["lsm"]["policy"])
         self.bounds: LSMBounds = LSMBounds(**cfg["lsm"]["bounds"])
+        self.seed: int = cfg["app"]["random_seed"]
 
         jcfg = cfg["job"]["create_lcm_data"]
         self.output_dir: str = jcfg["output_dir"]
@@ -53,7 +54,7 @@ class CreateLCMData:
         pos = 0
         if len(mp.current_process()._identity) > 0 and not single_worker:
             pos = mp.current_process()._identity[0] - 1
-        schema = LCMDataSchema(self.policy, self.bounds)
+        schema = LCMDataSchema(self.policy, self.bounds, seed=(self.seed + idx))
 
         self.generate_parquet_file(schema, idx, pos)
 
