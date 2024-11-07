@@ -13,12 +13,7 @@ class LSMDataGenerator:
     # always ensuring write_buffer > 0
     MEM_EPSILON = 0.1
 
-    def __init__(
-        self,
-        bounds: LSMBounds,
-        precision: int = 3,
-        seed: int = 0,
-    ) -> None:
+    def __init__(self, bounds: LSMBounds, precision: int = 3, seed: int = 0) -> None:
         self.precision = precision
         self.bounds = bounds
         self.cf = Cost(max_levels=bounds.max_considered_levels)
@@ -65,14 +60,13 @@ class LSMDataGenerator:
         s = self._sample_selectivity()
         H = self._sample_memory_budget()
         N = self._sample_total_elements()
-        system = System(E, s, B, N, H)
+        system = System(
+            entry_size=E, selectivity=s, entries_per_page=B, num_entries=N, mem_budget=H
+        )
 
         return system
 
-    def sample_design(
-        self,
-        system: System,
-    ) -> LSMDesign:
+    def sample_design(self, system: System) -> LSMDesign:
         h = self._sample_bloom_filter_bits(max=(system.mem_budget - self.MEM_EPSILON))
         T = self._sample_size_ratio()
         lsm = LSMDesign(
@@ -93,11 +87,7 @@ class LSMDataGenerator:
 
 
 class TieringGen(LSMDataGenerator):
-    def __init__(
-        self,
-        bounds: LSMBounds,
-        **kwargs,
-    ):
+    def __init__(self, bounds: LSMBounds, **kwargs):
         super().__init__(bounds, **kwargs)
 
     @override
@@ -115,18 +105,11 @@ class TieringGen(LSMDataGenerator):
 
 
 class LevelingGen(LSMDataGenerator):
-    def __init__(
-        self,
-        bounds: LSMBounds,
-        **kwargs,
-    ):
+    def __init__(self, bounds: LSMBounds, **kwargs):
         super().__init__(bounds, **kwargs)
 
     @override
-    def sample_design(
-        self,
-        system: System,
-    ) -> LSMDesign:
+    def sample_design(self, system: System) -> LSMDesign:
         h = self._sample_bloom_filter_bits(max=(system.mem_budget - self.MEM_EPSILON))
         T = self._sample_size_ratio()
         lsm = LSMDesign(
@@ -137,18 +120,11 @@ class LevelingGen(LSMDataGenerator):
 
 
 class ClassicGen(LSMDataGenerator):
-    def __init__(
-        self,
-        bounds: LSMBounds,
-        **kwargs,
-    ):
+    def __init__(self, bounds: LSMBounds, **kwargs):
         super().__init__(bounds, **kwargs)
 
     @override
-    def sample_design(
-        self,
-        system: System,
-    ) -> LSMDesign:
+    def sample_design(self, system: System) -> LSMDesign:
         h = self._sample_bloom_filter_bits(max=(system.mem_budget - self.MEM_EPSILON))
         T = self._sample_size_ratio()
         policy = random.choice((Policy.Tiering, Policy.Leveling))

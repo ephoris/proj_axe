@@ -15,8 +15,8 @@ from tqdm import tqdm
 
 class CreateLCMData:
     def __init__(self, cfg: dict) -> None:
-        self.log = logging.getLogger(cfg["log"]["name"])
-        self.disable_tqdm: bool = cfg["log"]["disable_tqdm"]
+        self.log: logging.Logger = logging.getLogger(cfg["app"]["name"])
+        self.disable_tqdm: bool = cfg["app"]["disable_tqdm"]
         self.policy: Policy = getattr(Policy, cfg["lsm"]["policy"])
         self.bounds: LSMBounds = LSMBounds(**cfg["lsm"]["bounds"])
         self.seed: int = cfg["app"]["random_seed"]
@@ -28,6 +28,7 @@ class CreateLCMData:
         self.file_prefix: str = jcfg["file_prefix"]
         self.num_workers: int = jcfg["num_workers"]
         self.overwrite_if_exists: bool = jcfg["overwrite_if_exists"]
+        self.cfg = cfg
 
     def generate_parquet_file(self, schema: LCMDataSchema, idx: int, pos: int) -> int:
         fname = f"{self.file_prefix}_{idx:04}.parquet"

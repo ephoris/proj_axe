@@ -13,17 +13,50 @@ class LCMDataSchema:
     ) -> None:
         self.cost: Cost = Cost(bounds.max_considered_levels)
         self.gen = DataGen.build_data_gen(policy=policy, bounds=bounds, seed=seed)
-
         self.policy: Policy = policy
         self.bounds: LSMBounds = bounds
         self.precision: int = precision
+
+    def label_cols(self) -> list[str]:
+        return kCOST_HEADER
+
+    def feat_cols(self) -> list[str]:
+        base_feat_cols = kWORKLOAD_HEADER + kSYSTEM_HEADER
+        if (self.policy == Policy.Tiering) or (self.policy == Policy.Leveling):
+            return base_feat_cols + ["bits_per_elem", "size_ratio"]
+        elif self.policy == Policy.Classic:
+            return base_feat_cols + ["bits_per_elem", "size_ratio", "policy"]
+        elif self.policy == Policy.QHybrid:
+            return base_feat_cols + ["bits_per_elem", "size_ratio", "Q"]
+        elif self.policy == Policy.Fluid:
+            return base_feat_cols + ["bits_per_elem", "size_ratio", "Y", "Z"]
+        elif self.policy == Policy.Kapacity:
+            cols = [f"K_{i}" for i in range(self.bounds.max_considered_levels)]
+            return base_feat_cols + ["bits_per_elem", "size_ratio"] + cols
+        else:
+            raise NotImplementedError
+
+    def categorical_feats(self) -> list[str]:
+        if (self.policy == Policy.Tiering) or (self.policy == Policy.Leveling):
+            return ["size_ratio"]
+        elif self.policy == Policy.Classic:
+            return ["policy", "size_ratio"]
+        elif self.policy == Policy.QHybrid:
+            return ["size_ratio", "Q"]
+        elif self.policy == Policy.Fluid:
+            return ["size_ratio", "Y", "Z"]
+        elif self.policy == Policy.Kapacity:
+            cols = [f"K_{i}" for i in range(self.bounds.max_considered_levels)]
+            return ["size_ratio"] + cols
+        else:
+            raise NotImplementedError
 
     def get_column_names(self) -> list[str]:
         column_names = (
             kCOST_HEADER
             + kWORKLOAD_HEADER
             + kSYSTEM_HEADER
-            + ["policy", "bits_per_elem", "size_ratio"]
+            + ["bits_per_elem", "size_ratio", "policy"]
         )
         if self.policy == Policy.QHybrid:
             column_names += ["Q"]
@@ -53,9 +86,9 @@ class LCMDataSchema:
             system.entry_size,
             system.mem_budget,
             system.num_entries,
-            design.policy.value,
             design.bits_per_elem,
             design.size_ratio,
+            design.policy.value,
         ] + list(design.kapacity)
 
         return line

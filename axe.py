@@ -6,16 +6,15 @@ import toml
 from typing import Any
 
 from jobs.create_lcm_data import CreateLCMData
+from jobs.train_lcm import TrainLCM
 
 
 class AxeDriver:
     def __init__(self, config: dict[str, Any]) -> None:
         self.config = config
-        logging.basicConfig(
-            format=config["log"]["format"], datefmt=config["log"]["datefmt"]
-        )
-        self.log: logging.Logger = logging.getLogger(config["log"]["name"])
-        self.log.setLevel(getattr(logging, config["log"]["level"]))
+        logging.basicConfig(**config["log"])
+        self.log: logging.Logger = logging.getLogger(config["app"]["name"])
+        self.log.setLevel(config["log"]["level"])
         log_level = logging.getLevelName(self.log.getEffectiveLevel())
         self.log.debug(f"Log level: {log_level}")
 
@@ -24,6 +23,7 @@ class AxeDriver:
 
         jobs = {
             "create_lcm_data": CreateLCMData,
+            "train_lcm": TrainLCM,
         }
         jobs_list = self.config["app"]["run"]
         for job_name in jobs_list:

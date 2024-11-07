@@ -1,9 +1,8 @@
 from typing import Callable, Optional, Tuple
 
-from torch import Tensor
-from torch import nn
 import torch
-import torch.nn.functional as F
+from torch import Tensor, nn
+from torch.nn.functional import one_hot
 
 
 class KapEmbedding(nn.Module):
@@ -83,11 +82,12 @@ class KapLCM(nn.Module):
         feats = x[:, :categorical_bound]
         capacities = x[:, categorical_bound:]
 
-        if self.training:
-            capacities = capacities.to(torch.long)
-            capacities = F.one_hot(capacities, num_classes=self.capacity_range)
-        else:
-            capacities = torch.unflatten(capacities, 1, (-1, self.capacity_range))
+        # if self.training:
+        #     capacities = capacities.to(torch.long)
+        #     capacities = one_hot(capacities, num_classes=self.capacity_range)
+        # else:
+        #     capacities = torch.unflatten(capacities, 1, (-1, self.capacity_range))
+        capacities = torch.unflatten(capacities, 1, (-1, self.capacity_range))
 
         size_ratio = capacities[:, 0, :]
         k_cap = capacities[:, 1:, :]
