@@ -19,8 +19,8 @@
 [app]
 name = "AXE"
 run = [
-    "create_lcm_data",
-    # "train_lcm",
+    # "create_lcm_data",
+    "train_lcm",
 ]
 random_seed = 2169
 disable_tqdm = false
@@ -65,32 +65,17 @@ elements_range = [100000000, 1000000000]    # element range
 # -----------------------------------------------------------------------------
 [job] # Common settings across all jobs
 # -----------------------------------------------------------------------------
-use_gpu_if_avail = false
+use_gpu_if_avail = true
 
 # -----------------------------------------------------------------------------
 [job.create_lcm_data]
 # -----------------------------------------------------------------------------
 output_dir = "data/lcm/train_data/qhybrid"
-num_samples = 1024
-num_files = 4
+num_samples = 131072
+num_files = 8
 file_prefix = "data"
-num_workers = 4
+num_workers = 2
 overwrite_if_exists = true
-
-# =============================================================================
-# HEADER LCM
-#   Add configurations related to learned cost models
-# =============================================================================
-[lcm.model]
-embedding_size = 8
-hidden_length = 3
-hidden_width = 32
-decision_dim = 64
-dropout = 0.0           # dropout percentage
-norm_layer = "Batch"    # "Batch" or "Layer" norm
-
-# Used only for classic models, generally smaller than embedding size
-policy_embedding_size = 4
 
 # -----------------------------------------------------------------------------
 [job.train_lcm]
@@ -101,9 +86,9 @@ no_checkpoint = false
 
 data_split = 0.8
 data_dir = "data/lcm/train_data/qhybrid"
-batch_size = 2
+batch_size = 1024
 shuffle = true
-num_workers = 2
+num_workers = 0
 
 # Different loss functions to train via
 #   MSE - Mean squared error
@@ -121,6 +106,22 @@ optimizer = "Adam"
 # Learning rate schedulers
 #   [CosineAnnealing, Exponential, Constant, None]
 lr_scheduler = "Constant"
+
+# =============================================================================
+# HEADER LCM
+#   Add configurations related to learned cost models
+# =============================================================================
+[lcm.model]
+embedding_size = 8
+hidden_length = 3
+hidden_width = 32
+decision_dim = 64
+dropout = 0.0           # dropout percentage
+norm_layer = "Batch"    # "Batch" or "Layer" norm
+
+# Used only for classic models, generally smaller than embedding size
+policy_embedding_size = 4
+
 
 # =============================================================================
 # HEADER LRSCHEDULERS

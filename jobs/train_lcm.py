@@ -1,15 +1,12 @@
 #!/usr/bin/env python
 import argparse
+import csv
 import logging
 import os
-import csv
 from typing import Optional, Tuple
-from torch import Tensor
-from tqdm import tqdm
 
 import toml
 import torch
-import polars as pl
 from axe.lcm.data.dataset import CostModelDataSet
 from axe.lcm.data.schema import LCMDataSchema
 from axe.lcm.model.builder import LearnedCostModelBuilder
@@ -17,7 +14,9 @@ from axe.lsm.types import LSMBounds, Policy
 from axe.util.losses import LossBuilder
 from axe.util.lr_scheduler import LRSchedulerBuilder
 from axe.util.optimizer import OptimizerBuilder
+from torch import Tensor
 from torch.utils.data import DataLoader
+from tqdm import tqdm
 
 
 class TrainLCM:
@@ -25,11 +24,9 @@ class TrainLCM:
         self.log: logging.Logger = logging.getLogger(cfg["app"]["name"])
         self.disable_tqdm: bool = cfg["app"]["disable_tqdm"]
         self.use_gpu = cfg["job"]["use_gpu_if_avail"]
-        self.device = (
-            torch.device("cuda")
-            if self.use_gpu and torch.cuda.is_available()
-            else torch.device("cpu")
-        )
+        self.device = torch.device("cpu")
+        if self.use_gpu and torch.cuda.is_available():
+            self.device = torch.device("cuda:0")
         self.policy: Policy = getattr(Policy, cfg["lsm"]["policy"])
         self.bounds: LSMBounds = LSMBounds(**cfg["lsm"]["bounds"])
         self.schema = LCMDataSchema(self.policy, self.bounds)
@@ -41,6 +38,7 @@ class TrainLCM:
         self.loss_fn = self._build_loss_fn()
         self.optimizer = self._build_optimizer(self.model)
         self.scheduler = self._build_scheduler(self.optimizer)
+        torch.set_float32_matmul_precision("high")
         self.train_data, self.validate_data = self._build_data()
 
     def _build_loss_fn(self) -> torch.nn.Module:
@@ -61,6 +59,7 @@ class TrainLCM:
         ).build_model(self.policy)
         if self.use_gpu and torch.cuda.is_available():
             model.to("cuda")
+        model.compile()
 
         return model
 
@@ -78,36 +77,21 @@ class TrainLCM:
 
     def _build_data(self) -> Tuple[DataLoader, DataLoader]:
         self.log.info(f"Data directory: {self.jcfg['data_dir']}")
-        table = pl.read_parquet(self.jcfg["data_dir"])
-        table = table.with_columns(pl.all().shuffle(seed=1)).with_row_index()
-        training_table = table.filter(
-            pl.col("index") < pl.col("index").max() * self.jcfg["data_split"]
-        )
-        training_dataset = CostModelDataSet(
-            table=training_table,
+        dataset = CostModelDataSet(
+            data_path=self.jcfg["data_dir"],
             bounds=self.bounds,
             policy=self.policy,
-            one_hot_transform=True,
+        )
+        train_len = int(len(dataset) * self.jcfg["data_split"])
+        val_len = len(dataset) - train_len
+        train_set, val_set = torch.utils.data.random_split(
+            dataset, [train_len, val_len]
         )
         training_data = DataLoader(
-            dataset=training_dataset,
-            batch_size=self.jcfg["batch_size"],
-            num_workers=self.jcfg["num_workers"],
-            shuffle=True,
-        )
-        validate_table = table.filter(
-            pl.col("index") >= pl.col("index").max() * self.jcfg["data_split"]
-        )
-        validate_dataset = CostModelDataSet(
-            table=validate_table,
-            bounds=self.bounds,
-            policy=self.policy,
-            one_hot_transform=True,
+            dataset=train_set, batch_size=self.jcfg["batch_size"], shuffle=True
         )
         validate_data = DataLoader(
-            dataset=validate_dataset,
-            batch_size=self.jcfg["batch_size"],
-            num_workers=self.jcfg["num_workers"],
+            dataset=val_set, batch_size=8 * self.jcfg["batch_size"]
         )
 
         return training_data, validate_data
@@ -165,7 +149,7 @@ class TrainLCM:
             pbar.set_description(f"validate {loss:e}")
             test_loss += loss
 
-        return test_loss
+        return test_loss / len(self.validate_data)
 
     def save_model(self, checkpoint_name: str, **kwargs) -> None:
         checkpoint_dir = os.path.join(self.jcfg["save_dir"], "checkpoints")
@@ -175,8 +159,6 @@ class TrainLCM:
         }
         save_dict.update(kwargs)
         torch.save(save_dict, os.path.join(checkpoint_dir, checkpoint_name))
-
-        return
 
     def run(self):
         self._make_save_dir()
@@ -206,8 +188,6 @@ class TrainLCM:
                 write.writerow([epoch + 1, train_loss, curr_loss])
 
         self.log.info("Training finished")
-
-        return
 
 
 def main():

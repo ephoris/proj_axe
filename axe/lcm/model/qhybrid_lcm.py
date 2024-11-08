@@ -17,7 +17,8 @@ class QHybridLCM(nn.Module):
         hidden_width: int = 32,
         dropout_percentage: float = 0,
         decision_dim: int = 64,
-        norm_layer: Optional[Callable[..., nn.Module]] = None
+        norm_layer: Optional[Callable[..., nn.Module]] = None,
+        disable_one_hot_encoding: bool = False,
     ) -> None:
         super().__init__()
         width = (num_feats - 2) + (2 * embedding_size)
@@ -45,6 +46,7 @@ class QHybridLCM(nn.Module):
         self.capacity_range = capacity_range
         self.num_feats = num_feats
         self.decision_dim = decision_dim
+        self.disable_one_hot_encoding = disable_one_hot_encoding
 
         for module in self.modules():
             if isinstance(module, nn.Linear):
@@ -55,11 +57,11 @@ class QHybridLCM(nn.Module):
         feats = x[:, :categorical_bound]
         capacities = x[:, categorical_bound:]
 
-        if self.training:
+        if self.disable_one_hot_encoding:
+            capacities = torch.unflatten(capacities, 1, (-1, self.capacity_range))
+        else:
             capacities = capacities.to(torch.long)
             capacities = F.one_hot(capacities, num_classes=self.capacity_range)
-        else:
-            capacities = torch.unflatten(capacities, 1, (-1, self.capacity_range))
 
         size_ratio = capacities[:, 0, :]
         q_cap = capacities[:, 1, :]
