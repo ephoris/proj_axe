@@ -3,20 +3,20 @@ from typing import Tuple
 from torch import nn
 from axe.lsm.types import Policy
 
-from axe.ltune.model import ClassicTuner, QLSMTuner, KapLSMTuner, YZLSMTuner
-from axe.ltune.model.kap_robust_tuner import KapLSMRobustTuner
-from axe.ltune.data.input_features import kINPUT_FEATS, kINPUT_FEATS_ROBUST
+from axe.ltuner.data.schema import LTunerDataSchema
+from axe.ltuner.model import ClassicTuner, QLSMTuner, KapLSMTuner, YZLSMTuner
+from axe.ltuner.model.kap_robust_tuner import KapLSMRobustTuner
 
 
 class LTuneModelBuilder:
     def __init__(
         self,
+        schema: LTunerDataSchema,
         hidden_length: int = 1,
         hidden_width: int = 64,
         norm_layer: str = "Batch",
         dropout: float = 0.0,
         categorical_mode: str = "gumbel",
-        size_ratio_range: Tuple[int, int] = (2, 31),
         max_levels: int = 16,
     ) -> None:
         self.hidden_length = hidden_length
@@ -24,8 +24,9 @@ class LTuneModelBuilder:
         self.dropout = dropout
         self.categorical_mode = categorical_mode
         self.max_levels = max_levels
-        self.size_ratio_min, self.size_ratio_max = size_ratio_range
-        self.capacity_range = self.size_ratio_max - self.size_ratio_min
+        size_ratio_min, size_ratio_max = schema.bounds.size_ratio_range
+        self.capacity_range = size_ratio_max - size_ratio_min
+        self.schema: LTunerDataSchema = schema
 
         self.norm_layer = nn.BatchNorm1d
         if norm_layer == "Layer":
@@ -33,16 +34,16 @@ class LTuneModelBuilder:
 
         self._models = {
             Policy.Classic: ClassicTuner,
-            Policy.QFixed: QLSMTuner,
-            Policy.KHybrid: KapLSMTuner,
-            Policy.YZHybrid: YZLSMTuner,
+            Policy.QHybrid: QLSMTuner,
+            Policy.Fluid: YZLSMTuner,
+            Policy.Kapacity: KapLSMTuner,
         }
 
     def get_choices(self):
         return self._models.keys()
 
     def build_robust_model(self) -> torch.nn.Module:
-        feat_list = kINPUT_FEATS_ROBUST
+        feat_list = self.schema.feat_cols()
         kwargs = {
             "num_feats": len(feat_list),
             "capacity_range": self.capacity_range,
@@ -51,14 +52,14 @@ class LTuneModelBuilder:
             "dropout_percentage": self.dropout,
             "norm_layer": self.norm_layer,
             "num_kap": self.max_levels,
-            "categorical_mode": self.categorical_mode
+            "categorical_mode": self.categorical_mode,
         }
         model = KapLSMRobustTuner(**kwargs)
 
         return model
 
     def build_model(self, policy: Policy) -> torch.nn.Module:
-        feat_list = kINPUT_FEATS
+        feat_list = self.schema.feat_cols()
 
         kwargs = {
             "num_feats": len(feat_list),

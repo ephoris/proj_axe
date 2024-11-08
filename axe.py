@@ -7,6 +7,7 @@ from typing import Any
 
 from jobs.create_lcm_data import CreateLCMData
 from jobs.train_lcm import TrainLCM
+from jobs.create_ltuner_data import CreateLTunerData
 
 
 class AxeDriver:
@@ -24,6 +25,7 @@ class AxeDriver:
         jobs = {
             "create_lcm_data": CreateLCMData,
             "train_lcm": TrainLCM,
+            "create_ltuner_data": CreateLTunerData,
         }
         jobs_list = self.config["app"]["run"]
         for job_name in jobs_list:

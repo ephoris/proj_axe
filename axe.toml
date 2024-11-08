@@ -19,8 +19,9 @@
 [app]
 name = "AXE"
 run = [
-    "create_lcm_data",
-    "train_lcm",
+    # "create_lcm_data",
+    # "train_lcm",
+    "create_ltuner_data",
 ]
 random_seed = 2169
 disable_tqdm = false
@@ -62,24 +63,24 @@ elements_range = [100000000, 1000000000]    # element range
 # HEADER JOB
 #   Settings for each individual job
 # =============================================================================
-# -----------------------------------------------------------------------------
+# --------------------------------------
 [job] # Common settings across all jobs
-# -----------------------------------------------------------------------------
+# --------------------------------------
 use_gpu_if_avail = true
 
-# -----------------------------------------------------------------------------
+# --------------------------------------
 [job.create_lcm_data]
-# -----------------------------------------------------------------------------
+# --------------------------------------
 output_dir = "data/lcm/train_data/kaplsm"
 num_samples = 1024
 num_files = 4
 file_prefix = "data"
 num_workers = 2
-overwrite_if_exists = true
+overwrite_if_exists = false
 
-# -----------------------------------------------------------------------------
+# --------------------------------------
 [job.train_lcm]
-# -----------------------------------------------------------------------------
+# --------------------------------------
 max_epochs = 5
 save_dir = "data/lcm/models/kaplsm_model"
 no_checkpoint = true
@@ -107,14 +108,31 @@ optimizer = "Adam"
 #   [CosineAnnealing, Exponential, Constant, None]
 lr_scheduler = "Constant"
 
-# -----------------------------------------------------------------------------
+# --------------------------------------
 [job.create_ltuner_data]
-# -----------------------------------------------------------------------------
+# --------------------------------------
 output_dir = "data/ltuner/train_data/std"
 num_samples = 1024
 num_files = 4
 num_workers = 2
-overwrite_if_exists = true
+overwrite_if_exists = false
+
+# --------------------------------------
+[job.train_ltuner]
+# --------------------------------------
+max_epochs = 5
+save_dir = "data/ltuner/models/kaplsm"
+# Learned cost model is our loss, input full path to checkpoint or model file
+loss_fn_path = "data/ltuner/train_data/std"
+optimizer = "Adam"
+lr_scheduler = "Constant"
+no_checkpoint = true
+
+data_split = 0.9
+data_dir = "data/ltuner/train_data/std"
+batch_size = 1024
+shuffle = true
+num_workers = 1
 
 # =============================================================================
 # HEADER LCM
@@ -131,6 +149,32 @@ norm_layer = "Batch"    # "Batch" or "Layer" norm
 # Used only for classic models, generally smaller than embedding size
 policy_embedding_size = 4
 
+# =============================================================================
+# HEADER LTUNER
+#   Learned tuner module
+# =============================================================================
+[ltuner]
+penalty_factor = 10
+
+# kwargs specific to LTune models during forward pass
+[ltuner.train_kwargs]
+temp = 1
+hard = false
+
+[ltuner.test_kwargs]
+temp = 0.01
+hard = true
+
+# -----------------------------------------------------------------------------
+# HEADER LTUNER.MODEL
+#   Model configurations
+# -----------------------------------------------------------------------------
+[ltuner.model]
+hidden_length = 1
+hidden_width = 64
+dropout = 0                     # dropout percentage
+norm_layer = "Batch"            # batch or layer norm
+categorical_mode = "reinmax"    # reinmax or gumbel
 
 # =============================================================================
 # HEADER LRSCHEDULERS
