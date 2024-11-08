@@ -65,7 +65,6 @@ class QHybridLCM(nn.Module):
 
         size_ratio = capacities[:, 0, :]
         q_cap = capacities[:, 1, :]
-
         return (feats, size_ratio, q_cap)
 
     def _forward_impl(self, x: Tensor) -> Tensor:

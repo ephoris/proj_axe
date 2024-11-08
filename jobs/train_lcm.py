@@ -7,7 +7,7 @@ from typing import Optional, Tuple
 
 import toml
 import torch
-from axe.lcm.data.dataset import CostModelDataSet
+import polars as pl
 from axe.lcm.data.schema import LCMDataSchema
 from axe.lcm.model.builder import LearnedCostModelBuilder
 from axe.lsm.types import LSMBounds, Policy
@@ -75,12 +75,36 @@ class TrainLCM:
             optimizer, self.jcfg["lr_scheduler"]
         )
 
+    def _preprocess_data(self, table: pl.DataFrame):
+        table = table.with_columns(
+            pl.col("size_ratio").sub(self.bounds.size_ratio_range[0])
+        )
+        if self.policy == Policy.QHybrid:
+            table = table.with_columns(
+                pl.col("Q").sub(self.bounds.size_ratio_range[0] - 1)
+            )
+        elif self.policy == Policy.Fluid:
+            table = table.with_columns(
+                pl.col("Y").sub(self.bounds.size_ratio_range[0] - 1),
+                pl.col("Z").sub(self.bounds.size_ratio_range[0] - 1),
+            )
+        elif self.policy == Policy.Kapacity:
+            table = table.with_columns(
+                [
+                    pl.col(f"K_{i}").sub(self.bounds.size_ratio_range[0] - 1).clip(0)
+                    for i in range(self.bounds.max_considered_levels)
+                ]
+            )
+
+        return table
+
     def _build_data(self) -> Tuple[DataLoader, DataLoader]:
-        self.log.info(f"Data directory: {self.jcfg['data_dir']}")
-        dataset = CostModelDataSet(
-            data_path=self.jcfg["data_dir"],
-            bounds=self.bounds,
-            policy=self.policy,
+        table = pl.read_parquet(self.jcfg["data_dir"])
+        table = self._preprocess_data(table)
+        dataset = table.to_torch(
+            return_type="dataset",
+            features=self.schema.feat_cols(),
+            label=self.schema.label_cols(),
         )
         train_len = int(len(dataset) * self.jcfg["data_split"])
         val_len = len(dataset) - train_len
@@ -88,10 +112,15 @@ class TrainLCM:
             dataset, [train_len, val_len]
         )
         training_data = DataLoader(
-            dataset=train_set, batch_size=self.jcfg["batch_size"], shuffle=True
+            dataset=train_set,
+            batch_size=self.jcfg["batch_size"],
+            num_workers=self.jcfg["num_workers"],
+            shuffle=True,
         )
         validate_data = DataLoader(
-            dataset=val_set, batch_size=8 * self.jcfg["batch_size"]
+            dataset=val_set,
+            batch_size=8 * self.jcfg["batch_size"],
+            num_workers=self.jcfg["num_workers"],
         )
 
         return training_data, validate_data
@@ -197,11 +226,9 @@ def main():
     config = toml.load(args.config)
     logging.basicConfig(**config["log"])
     log: logging.Logger = logging.getLogger(config["app"]["name"])
-    log_level = logging.getLevelName(log.getEffectiveLevel())
-    log.debug(f"Log level: {log_level}")
-    job = TrainLCM(config)
+    log.info(f"Log level: {logging.getLevelName(log.getEffectiveLevel())}")
 
-    job.run()
+    TrainLCM(config).run()
 
 
 if __name__ == "__main__":

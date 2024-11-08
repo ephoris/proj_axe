@@ -91,9 +91,12 @@ def main():
     parser = argparse.ArgumentParser()
     parser.add_argument("--config", type=str, help="path to config file")
     args = parser.parse_args()
-    job = CreateLCMData(toml.load(args.config))
+    config = toml.load(args.config)
+    logging.basicConfig(**config["log"])
+    log: logging.Logger = logging.getLogger(config["app"]["name"])
+    log.info(f"Log level: {logging.getLevelName(log.getEffectiveLevel())}")
 
-    job.run()
+    CreateLCMData(toml.load(args.config)).run()
 
 
 if __name__ == "__main__":
