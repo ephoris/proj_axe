@@ -127,7 +127,8 @@ class TrainLCM:
     def _make_save_dir(self) -> None:
         self.log.info(f"Saving tuner in {self.jcfg['save_dir']}")
         os.makedirs(self.jcfg["save_dir"], exist_ok=False)
-        os.makedirs(os.path.join(self.jcfg["save_dir"], "checkpoints"), exist_ok=False)
+        if not self.jcfg["no_checkpoint"]:
+            os.makedirs(os.path.join(self.jcfg["save_dir"], "checkpoints"))
         with open(os.path.join(self.jcfg["save_dir"], "axe.toml"), "w") as fid:
             toml.dump(self.cfg, fid)
 
@@ -177,13 +178,12 @@ class TrainLCM:
         return test_loss / len(self.validate_data)
 
     def save_model(self, fname: str, **kwargs) -> None:
-        checkpoint_dir = os.path.join(self.jcfg["save_dir"], "checkpoints")
         save_dict = {
             "model_state_dict": self.model.state_dict(),
             "optimizer_state_dict": self.optimizer.state_dict(),
         }
         save_dict.update(kwargs)
-        torch.save(save_dict, os.path.join(checkpoint_dir, fname))
+        torch.save(save_dict, os.path.join(self.jcfg["save_dir"], fname))
 
     def run(self):
         self.log.info("[Job] Training LCM")
@@ -203,12 +203,12 @@ class TrainLCM:
             self.log.info(f"Training loss: {train_loss}")
             self.log.info(f"Validate loss: {curr_loss}")
             if not self.jcfg["no_checkpoint"]:
-                self.save_model(f"epoch{epoch:02d}.model", loss=curr_loss)
+                self.save_model(f"checkpoints/epoch{epoch:02d}.model", loss=curr_loss)
 
             if curr_loss < loss_min:
                 loss_min = curr_loss
                 self.log.info("New minmum loss saving best model")
-                self.save_model("best.model", loss=loss_min, epoch=epoch)
+                self.save_model("best_model.model", loss=loss_min, epoch=epoch)
             with open(loss_file, "a") as fid:
                 write = csv.writer(fid)
                 write.writerow([epoch + 1, train_loss, curr_loss])
