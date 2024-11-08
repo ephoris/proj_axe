@@ -126,13 +126,10 @@ class TrainLCM:
 
     def _make_save_dir(self) -> None:
         self.log.info(f"Saving tuner in {self.jcfg['save_dir']}")
-        try:
-            os.makedirs(self.jcfg["save_dir"], exist_ok=False)
-        except FileExistsError:
-            return None
+        os.makedirs(self.jcfg["save_dir"], exist_ok=False)
+        os.makedirs(os.path.join(self.jcfg["save_dir"], "checkpoints"), exist_ok=False)
         with open(os.path.join(self.jcfg["save_dir"], "axe.toml"), "w") as fid:
             toml.dump(self.cfg, fid)
-        os.makedirs(os.path.join(self.jcfg["save_dir"], "checkpoints"))
 
     def train_step(self, feats: Tensor, labels: Tensor, **kwargs) -> float:
         label = labels.to(self.device)
@@ -152,7 +149,7 @@ class TrainLCM:
         for batch, (feats, labels) in enumerate(pbar):
             loss = self.train_step(feats, labels)
             if batch % (25) == 0:
-                pbar.set_description(f"loss {loss:e}")
+                pbar.set_description(f"training loss {loss:e}")
             total_loss += loss
             if self.scheduler is not None:
                 self.scheduler.step()
@@ -174,7 +171,7 @@ class TrainLCM:
         pbar = tqdm(self.validate_data, ncols=80, disable=self.disable_tqdm)
         for feats, labels in pbar:
             loss = self.validate_step(feats, labels)
-            pbar.set_description(f"validate {loss:e}")
+            pbar.set_description(f"validate loss {loss:e}")
             test_loss += loss
 
         return test_loss / len(self.validate_data)
@@ -189,6 +186,7 @@ class TrainLCM:
         torch.save(save_dict, os.path.join(checkpoint_dir, fname))
 
     def run(self):
+        self.log.info("[Job] Training LCM")
         self._make_save_dir()
 
         loss_file = os.path.join(self.jcfg["save_dir"], "losses.csv")
@@ -209,7 +207,7 @@ class TrainLCM:
 
             if curr_loss < loss_min:
                 loss_min = curr_loss
-                self.log.info("New minmum loss, saving...")
+                self.log.info("New minmum loss saving best model")
                 self.save_model("best.model", loss=loss_min, epoch=epoch)
             with open(loss_file, "a") as fid:
                 write = csv.writer(fid)

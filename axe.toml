@@ -19,7 +19,7 @@
 [app]
 name = "AXE"
 run = [
-    # "create_lcm_data",
+    "create_lcm_data",
     "train_lcm",
 ]
 random_seed = 2169
@@ -47,7 +47,7 @@ level = "INFO"
 #   QHybrid - Levels 1 -> L = Q
 #   Fluid - Levels 1 -> (L-1) = Q, Level L = Z
 #   Kapacity - Each level has own K_i decision
-policy = 'QHybrid'
+policy = 'Kapacity'
 
 [lsm.bounds]
 max_considered_levels = 20                  # Max number of levels to consider
@@ -70,9 +70,9 @@ use_gpu_if_avail = true
 # -----------------------------------------------------------------------------
 [job.create_lcm_data]
 # -----------------------------------------------------------------------------
-output_dir = "data/lcm/train_data/qhybrid"
-num_samples = 131072
-num_files = 8
+output_dir = "data/lcm/train_data/kaplsm"
+num_samples = 1024
+num_files = 4
 file_prefix = "data"
 num_workers = 2
 overwrite_if_exists = true
@@ -80,15 +80,15 @@ overwrite_if_exists = true
 # -----------------------------------------------------------------------------
 [job.train_lcm]
 # -----------------------------------------------------------------------------
-max_epochs = 50
-save_dir = "data/lcm/models/qmodel"
-no_checkpoint = false
+max_epochs = 5
+save_dir = "data/lcm/models/kaplsm_model"
+no_checkpoint = true
 
-data_split = 0.8
-data_dir = "data/lcm/train_data/qhybrid"
-batch_size = 1024
+data_split = 0.9
+data_dir = "data/lcm/train_data/kaplsm"
+batch_size = 8
 shuffle = true
-num_workers = 2
+num_workers = 4
 
 # Different loss functions to train via
 #   MSE - Mean squared error

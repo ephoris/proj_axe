@@ -14,9 +14,9 @@ class AxeDriver:
         self.config = config
         logging.basicConfig(**config["log"])
         self.log: logging.Logger = logging.getLogger(config["app"]["name"])
-        self.log.setLevel(config["log"]["level"])
-        log_level = logging.getLevelName(self.log.getEffectiveLevel())
-        self.log.debug(f"Log level: {log_level}")
+        self.log.info(
+            f"Log level: {logging.getLevelName(self.log.getEffectiveLevel())}"
+        )
 
     def run(self):
         self.log.info(f'Staring app {self.config["app"]["name"]}')

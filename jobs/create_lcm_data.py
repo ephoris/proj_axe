@@ -62,7 +62,7 @@ class CreateLCMData:
         return idx
 
     def run(self) -> None:
-        self.log.info("Running data generator for LCM")
+        self.log.info("[Job] Creating LCM Data")
         os.makedirs(self.output_dir, exist_ok=True)
         self.log.info(f"Writing all files to {self.output_dir}")
 
