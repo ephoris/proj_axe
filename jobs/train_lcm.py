@@ -5,9 +5,9 @@ import logging
 import os
 from typing import Optional, Tuple
 
+import polars as pl
 import toml
 import torch
-import polars as pl
 from axe.lcm.data.schema import LCMDataSchema
 from axe.lcm.model.builder import LearnedCostModelBuilder
 from axe.lsm.types import LSMBounds, Policy
@@ -15,7 +15,7 @@ from axe.util.losses import LossBuilder
 from axe.util.lr_scheduler import LRSchedulerBuilder
 from axe.util.optimizer import OptimizerBuilder
 from torch import Tensor
-from torch.utils.data import DataLoader
+from torch.utils.data import DataLoader, random_split
 from tqdm import tqdm
 
 
@@ -39,7 +39,7 @@ class TrainLCM:
         self.optimizer = self._build_optimizer(self.model)
         self.scheduler = self._build_scheduler(self.optimizer)
         torch.set_float32_matmul_precision("high")
-        self.train_data, self.validate_data = self._build_data()
+        self.training_data, self.validate_data = self._build_data()
 
     def _build_loss_fn(self) -> torch.nn.Module:
         choice = self.jcfg["loss_fn"]
@@ -55,8 +55,8 @@ class TrainLCM:
 
     def _build_model(self) -> torch.nn.Module:
         model = LearnedCostModelBuilder(
-            self.bounds, **self.cfg["lcm"]["model"]
-        ).build_model(self.policy)
+            schema=self.schema, **self.cfg["lcm"]["model"]
+        ).build_model()
         if self.use_gpu and torch.cuda.is_available():
             model.to("cuda")
         model.compile()
@@ -105,12 +105,11 @@ class TrainLCM:
             return_type="dataset",
             features=self.schema.feat_cols(),
             label=self.schema.label_cols(),
+            dtype=pl.Float32,
         )
         train_len = int(len(dataset) * self.jcfg["data_split"])
         val_len = len(dataset) - train_len
-        train_set, val_set = torch.utils.data.random_split(
-            dataset, [train_len, val_len]
-        )
+        train_set, val_set = random_split(dataset, [train_len, val_len])
         training_data = DataLoader(
             dataset=train_set,
             batch_size=self.jcfg["batch_size"],
@@ -149,7 +148,7 @@ class TrainLCM:
     def train_loop(self) -> float:
         self.model.train()
         total_loss = 0
-        pbar = tqdm(self.train_data, ncols=80, disable=self.disable_tqdm)
+        pbar = tqdm(self.training_data, ncols=80, disable=self.disable_tqdm)
         for batch, (feats, labels) in enumerate(pbar):
             loss = self.train_step(feats, labels)
             if batch % (25) == 0:
@@ -158,7 +157,7 @@ class TrainLCM:
             if self.scheduler is not None:
                 self.scheduler.step()
 
-        return total_loss / len(self.train_data)
+        return total_loss / len(self.training_data)
 
     def validate_step(self, feats: Tensor, labels: Tensor, **kwargs) -> float:
         with torch.no_grad():
@@ -180,14 +179,14 @@ class TrainLCM:
 
         return test_loss / len(self.validate_data)
 
-    def save_model(self, checkpoint_name: str, **kwargs) -> None:
+    def save_model(self, fname: str, **kwargs) -> None:
         checkpoint_dir = os.path.join(self.jcfg["save_dir"], "checkpoints")
         save_dict = {
             "model_state_dict": self.model.state_dict(),
             "optimizer_state_dict": self.optimizer.state_dict(),
         }
         save_dict.update(kwargs)
-        torch.save(save_dict, os.path.join(checkpoint_dir, checkpoint_name))
+        torch.save(save_dict, os.path.join(checkpoint_dir, fname))
 
     def run(self):
         self._make_save_dir()

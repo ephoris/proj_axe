@@ -5,7 +5,6 @@ from torch import nn
 import torch
 import torch.nn.functional as F
 
-OUT_WIDTH = 4
 
 class QHybridLCM(nn.Module):
     def __init__(

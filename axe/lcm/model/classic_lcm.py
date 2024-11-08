@@ -5,7 +5,6 @@ from torch import nn
 import torch
 import torch.nn.functional as F
 
-OUT_WIDTH = 4
 
 class ClassicLCM(nn.Module):
     def __init__(
@@ -18,7 +17,8 @@ class ClassicLCM(nn.Module):
         dropout_percentage: float = 0,
         policy_embedding_size: int = 1,
         decision_dim: int = 64,
-        norm_layer: Optional[Callable[..., nn.Module]] = None
+        norm_layer: Optional[Callable[..., nn.Module]] = None,
+        disable_one_hot_encoding: bool = False,
     ) -> None:
         super().__init__()
         width = (num_feats - 2) + embedding_size + policy_embedding_size
@@ -45,6 +45,7 @@ class ClassicLCM(nn.Module):
         self.capacity_range = capacity_range
         self.num_feats = num_feats
         self.decision_dim = decision_dim
+        self.disable_one_hot_encoding = disable_one_hot_encoding
 
         for module in self.modules():
             if isinstance(module, nn.Linear):
@@ -55,16 +56,16 @@ class ClassicLCM(nn.Module):
         policy_boundary = t_boundary + self.capacity_range
         feats = x[:, :t_boundary]
 
-        if self.training:
+        if self.disable_one_hot_encoding:
+            policy = x[:, policy_boundary : policy_boundary + 2]
+            size_ratio = x[:, t_boundary : policy_boundary]
+        else:
             size_ratio = x[:, -1]
             size_ratio = size_ratio.to(torch.long)
             size_ratio = F.one_hot(size_ratio, num_classes=self.capacity_range)
             policy = x[:, t_boundary]
             policy = policy.to(torch.long)
             policy = F.one_hot(policy, num_classes=2)
-        else:
-            policy = x[:, policy_boundary : policy_boundary + 2]
-            size_ratio = x[:, t_boundary : policy_boundary]
         
         return (feats, size_ratio, policy)
 

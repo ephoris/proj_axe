@@ -44,6 +44,7 @@ class KapLCM(nn.Module):
         max_levels: int = 20,
         decision_dim: int = 64,
         norm_layer: Optional[Callable[..., nn.Module]] = None,
+        disable_one_hot_encoding: bool = False,
     ) -> None:
         super().__init__()
         width = (max_levels + 1) * embedding_size + num_feats - (max_levels + 1)
@@ -72,6 +73,7 @@ class KapLCM(nn.Module):
         self.num_feats = num_feats
         self.max_levels = max_levels
         self.decision_dim = decision_dim
+        self.disable_one_hot_encoding = disable_one_hot_encoding
 
         for module in self.modules():
             if isinstance(module, nn.Linear):
@@ -82,12 +84,11 @@ class KapLCM(nn.Module):
         feats = x[:, :categorical_bound]
         capacities = x[:, categorical_bound:]
 
-        # if self.training:
-        #     capacities = capacities.to(torch.long)
-        #     capacities = one_hot(capacities, num_classes=self.capacity_range)
-        # else:
-        #     capacities = torch.unflatten(capacities, 1, (-1, self.capacity_range))
-        capacities = torch.unflatten(capacities, 1, (-1, self.capacity_range))
+        if self.disable_one_hot_encoding:
+            capacities = torch.unflatten(capacities, 1, (-1, self.capacity_range))
+        else:
+            capacities = capacities.to(torch.long)
+            capacities = one_hot(capacities, num_classes=self.capacity_range)
 
         size_ratio = capacities[:, 0, :]
         k_cap = capacities[:, 1:, :]
