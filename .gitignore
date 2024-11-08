@@ -133,3 +133,6 @@ dmypy.json
 # Ignore saved models and checkpoints
 *.model
 *.pt
+
+# Default directory to place data in, used in example tomls
+data/
