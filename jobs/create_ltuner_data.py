@@ -8,12 +8,12 @@ import toml
 import pyarrow as pa
 import pyarrow.parquet as pq
 from axe.lsm.types import LSMBounds, Policy
-from axe.lcm.data.schema import LCMDataSchema
+from axe.ltune.data.schema import LTunerDataSchema
 
 from tqdm import tqdm
 
 
-class CreateLCMData:
+class CreateLTunerData:
     def __init__(self, cfg: dict) -> None:
         self.log: logging.Logger = logging.getLogger(cfg["app"]["name"])
         self.disable_tqdm: bool = cfg["app"]["disable_tqdm"]
@@ -21,7 +21,7 @@ class CreateLCMData:
         self.bounds: LSMBounds = LSMBounds(**cfg["lsm"]["bounds"])
         self.seed: int = cfg["app"]["random_seed"]
 
-        jcfg = cfg["job"]["create_lcm_data"]
+        jcfg = cfg["job"]["create_ltuner_data"]
         self.output_dir: str = jcfg["output_dir"]
         self.num_samples: int = jcfg["num_samples"]
         self.num_files: int = jcfg["num_files"]
@@ -29,7 +29,9 @@ class CreateLCMData:
         self.overwrite_if_exists: bool = jcfg["overwrite_if_exists"]
         self.cfg = cfg
 
-    def generate_parquet_file(self, schema: LCMDataSchema, idx: int, pos: int) -> int:
+    def generate_parquet_file(
+        self, schema: LTunerDataSchema, idx: int, pos: int
+    ) -> int:
         fname = f"data{idx:04}.parquet"
         fpath = os.path.join(self.output_dir, fname)
 
@@ -54,7 +56,7 @@ class CreateLCMData:
         pos = 0
         if len(mp.current_process()._identity) > 0 and not single_worker:
             pos = mp.current_process()._identity[0] - 1
-        schema = LCMDataSchema(self.policy, self.bounds, seed=(self.seed + idx))
+        schema = LTunerDataSchema(self.policy, self.bounds, seed=(self.seed + idx))
 
         self.generate_parquet_file(schema, idx, pos)
 
@@ -95,7 +97,7 @@ def main():
     log: logging.Logger = logging.getLogger(config["app"]["name"])
     log.info(f"Log level: {logging.getLevelName(log.getEffectiveLevel())}")
 
-    CreateLCMData(toml.load(args.config)).run()
+    CreateLTunerData(toml.load(args.config)).run()
 
 
 if __name__ == "__main__":

@@ -107,6 +107,15 @@ optimizer = "Adam"
 #   [CosineAnnealing, Exponential, Constant, None]
 lr_scheduler = "Constant"
 
+# -----------------------------------------------------------------------------
+[job.create_ltuner_data]
+# -----------------------------------------------------------------------------
+output_dir = "data/ltuner/train_data/std"
+num_samples = 1024
+num_files = 4
+num_workers = 2
+overwrite_if_exists = true
+
 # =============================================================================
 # HEADER LCM
 #   Add configurations related to learned cost models
