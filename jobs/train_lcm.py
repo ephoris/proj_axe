@@ -74,8 +74,28 @@ class TrainLCM:
             optimizer, self.jcfg["lr_scheduler"]
         )
 
+    def _preprocess_data(self, table: pl.DataFrame):
+        min_size_ratio, _ = self.bounds.size_ratio_range
+        table = table.with_columns(pl.col("size_ratio").sub(min_size_ratio))
+        if self.policy == Policy.QHybrid:
+            table = table.with_columns(pl.col("Q").sub(min_size_ratio - 1))
+        elif self.policy == Policy.Fluid:
+            table = table.with_columns(
+                pl.col("Y").sub(min_size_ratio - 1),
+                pl.col("Z").sub(min_size_ratio - 1),
+            )
+        elif self.policy == Policy.Kapacity:
+            table = table.with_columns(
+                [
+                    pl.col(f"K_{i}").sub(min_size_ratio - 1).clip(0)
+                    for i in range(self.bounds.max_considered_levels)
+                ]
+            )
+        return table
+
     def _build_data(self) -> Tuple[DataLoader, DataLoader]:
         table = pl.read_parquet(self.jcfg["data_dir"])
+        table = self._preprocess_data(table)
         dataset = table.to_torch(
             return_type="dataset",
             features=self.schema.feat_cols(),

@@ -17,17 +17,17 @@ class LSMDataGenerator:
         self.precision = precision
         self.bounds = bounds
         self.cf = Cost(max_levels=bounds.max_considered_levels)
-        np.random.seed(seed)
+        self.rng = np.random.default_rng(seed=seed)
 
     def _sample_size_ratio(self) -> int:
         low, high = self.bounds.size_ratio_range
-        return np.random.randint(low=low, high=high)
+        return self.rng.integers(low=low, high=high)
 
     def _sample_bloom_filter_bits(self, max: Optional[float] = None) -> float:
         if max is None:
             max = self.bounds.bits_per_elem_range[1]
         min = self.bounds.bits_per_elem_range[0]
-        sample = (max - min) * np.random.rand() + min
+        sample = (max - min) * self.rng.random() + min
         return np.around(sample, self.precision)
 
     # TODO: Will want to configure environment to simulate larger ranges over
@@ -37,22 +37,22 @@ class LSMDataGenerator:
         KB_TO_BITS = 8 * 1024
         page_sizes = np.array(self.bounds.page_sizes)
         entries_per_page = (page_sizes * KB_TO_BITS) / entry_size
-        return np.random.choice(entries_per_page)
+        return self.rng.choice(entries_per_page)
 
     def _sample_selectivity(self) -> float:
         low, high = self.bounds.selectivity_range
-        return (high - low) * np.random.rand() + low
+        return (high - low) * self.rng.random() + low
 
     def _sample_entry_size(self) -> int:
-        return np.random.choice(self.bounds.entry_sizes)
+        return self.rng.choice(self.bounds.entry_sizes)
 
     def _sample_memory_budget(self) -> float:
         low, high = self.bounds.memory_budget_range
-        return (high - low) * np.random.rand() + low
+        return (high - low) * self.rng.random() + low
 
     def _sample_total_elements(self) -> int:
         low, high = self.bounds.elements_range
-        return np.random.randint(low=low, high=high)
+        return self.rng.integers(low=low, high=high)
 
     def sample_system(self) -> System:
         E = self._sample_entry_size()
@@ -78,7 +78,7 @@ class LSMDataGenerator:
     def sample_workload(self) -> Workload:
         # See stackoverflow thread for why the simple solution is not uniform
         # https://stackoverflow.com/questions/8064629
-        workload = np.around(np.random.rand(3), self.precision)
+        workload = np.around(self.rng.random(3), self.precision)
         workload = np.concatenate((workload, np.array([0, 1])))
         workload = np.sort(workload)
 
@@ -148,7 +148,7 @@ class KapacityGen(LSMDataGenerator):
         h = design.bits_per_elem
         T = design.size_ratio
         levels = int(self.cf.L(design, system, ceil=True))
-        k = np.random.randint(low=1, high=int(T), size=(levels))
+        k = self.rng.integers(low=1, high=int(T), size=(levels))
         remaining = np.ones(self.bounds.max_considered_levels - len(k))
         k = np.concatenate([k, remaining])
         design = LSMDesign(
@@ -163,7 +163,7 @@ class QHybridGen(LSMDataGenerator):
         super().__init__(bounds, **kwargs)
 
     def _sample_q(self, max_size_ratio: int) -> int:
-        return np.random.randint(
+        return self.rng.integers(
             low=self.bounds.size_ratio_range[0] - 1,
             high=max_size_ratio,
         )
@@ -186,7 +186,7 @@ class FluidLSMGen(LSMDataGenerator):
         super().__init__(bounds, **kwargs)
 
     def _sample_capacity(self, max_size_ratio: int) -> int:
-        return np.random.randint(
+        return self.rng.integers(
             low=self.bounds.size_ratio_range[0] - 1,
             high=max_size_ratio,
         )

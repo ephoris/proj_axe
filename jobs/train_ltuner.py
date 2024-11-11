@@ -45,6 +45,7 @@ class TrainLTuner:
 
     def _build_loss_fn(self) -> torch.nn.Module:
         loss = LearnedCostModelLoss(self.cfg, self.jcfg["loss_fn_path"]).to(self.device)
+        loss.lcm.compile()
 
         return loss
 
