@@ -17,7 +17,7 @@ class OptimizerBuilder:
     def _build_sgd(self, model: Module) -> Opt.SGD:
         return Opt.SGD(model.parameters(), **self.opt_kwargs["SGD"])
 
-    def build_optimizer(self, optimizer_choice: str, model: Module) -> Opt.Optimizer:
+    def build(self, optimizer_choice: str, model: Module) -> Opt.Optimizer:
         optimizers = {
             "Adam": self._build_adam,
             "Adagrad": self._build_adagrad,

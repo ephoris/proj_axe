@@ -70,14 +70,8 @@ class KapLSMRobustTuner(nn.Module):
         self.k_decision = KapDecision(hidden_width, capacity_range, num_kap)
         self.t_decision = nn.Linear(hidden_width, capacity_range)
         self.bits_decision = nn.Linear(hidden_width, 1)
-        self.eta_decision = nn.Sequential(
-            nn.Linear(hidden_width, 1),
-            nn.ReLU(inplace=True),
-        )
-        self.lamb_decision = nn.Sequential(
-            nn.Linear(hidden_width, 1),
-            nn.ReLU(inplace=True),
-        )
+        self.eta_decision = nn.Linear(hidden_width, 1)
+        self.lamb_decision = nn.Linear(hidden_width, 1)
 
         self.capacity_range = capacity_range
         self.num_feats = num_feats

@@ -134,5 +134,5 @@ dmypy.json
 *.model
 *.pt
 
-# Default directory to place data in, used in example tomls
-data/
+# Default data directory ONLY in the root of the project
+/data/

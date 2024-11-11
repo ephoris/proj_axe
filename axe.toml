@@ -21,7 +21,8 @@ name = "AXE"
 run = [
     # "create_lcm_data",
     # "train_lcm",
-    "create_ltuner_data",
+    # "create_ltuner_data",
+    "train_ltuner"
 ]
 random_seed = 2169
 disable_tqdm = false
@@ -74,8 +75,7 @@ use_gpu_if_avail = true
 output_dir = "data/lcm/train_data/kaplsm"
 num_samples = 1024
 num_files = 4
-file_prefix = "data"
-num_workers = 2
+num_workers = 0
 overwrite_if_exists = false
 
 # --------------------------------------
@@ -89,7 +89,7 @@ data_split = 0.9
 data_dir = "data/lcm/train_data/kaplsm"
 batch_size = 8
 shuffle = true
-num_workers = 4
+num_workers = 0
 
 # Different loss functions to train via
 #   MSE - Mean squared error
@@ -114,7 +114,7 @@ lr_scheduler = "Constant"
 output_dir = "data/ltuner/train_data/std"
 num_samples = 1024
 num_files = 4
-num_workers = 2
+num_workers = 0
 overwrite_if_exists = false
 
 # --------------------------------------
@@ -123,7 +123,7 @@ overwrite_if_exists = false
 max_epochs = 5
 save_dir = "data/ltuner/models/kaplsm"
 # Learned cost model is our loss, input full path to checkpoint or model file
-loss_fn_path = "data/ltuner/train_data/std"
+loss_fn_path = "data/lcm/models/kaplsm_model"
 optimizer = "Adam"
 lr_scheduler = "Constant"
 no_checkpoint = true
@@ -132,7 +132,7 @@ data_split = 0.9
 data_dir = "data/ltuner/train_data/std"
 batch_size = 1024
 shuffle = true
-num_workers = 1
+num_workers = 0
 
 # =============================================================================
 # HEADER LCM

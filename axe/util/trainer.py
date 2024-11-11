@@ -2,47 +2,15 @@ import torch
 from torch import Tensor
 
 
-class Trainer:
-    def __init__(
-        self,
-        model: torch.nn.Module,
-        optimizer: torch.optim.Optimizer,
-        loss_fn: torch.nn.Module,
-        device: torch.device = torch.device("cpu"),
-    ) -> None:
-        self.model = model
-        self.optimizer = optimizer
-        self.loss_fn = loss_fn
-        self.device = device
+def train_step(
+    feats: Tensor,
+    labels: Tensor,
+    model: torch.nn.Module,
+    loss: torch.nn.Module,
 
-    def train_step(self, label: Tensor, features: Tensor, **kwargs) -> float:
-        label = label.to(self.device)
-        features = features.to(self.device)
-        self.optimizer.zero_grad()
-        pred = self.model(features, **kwargs)
-        loss = self.loss_fn(pred, label)
-        loss.backward()
-        self.optimizer.step()
+) -> float:
 
-        return loss.item()
-
-    def validate_step(self, labels: Tensor, features: Tensor, **kwargs) -> float:
-        with torch.no_grad():
-            labels = labels.to(self.device)
-            features = features.to(self.device)
-            pred = self.model(features, **kwargs)
-            validate_loss = self.loss_fn(pred, labels).item()
-
-        return validate_loss
-
-    def get_checkpoint_dict(self, epoch: int, loss: float) -> dict:
-        checkpoint_dict = {
-            "epoch": epoch,
-            "model_state_dict": self.model.state_dict(),
-            "optimizer_state_dict": self.optimizer.state_dict(),
-            "loss": loss,
-        }
-        return checkpoint_dict
+    return 0
 
 
 # class Trainer:

@@ -44,7 +44,7 @@ class LearnedCostModelBuilder:
     def get_choices(self):
         return self._models.keys()
 
-    def build_model(self, **kwargs) -> torch.nn.Module:
+    def build(self, **kwargs) -> torch.nn.Module:
         feat_columns = self.schema.feat_cols()
         num_feats = len(feat_columns)
         args = {

@@ -1,54 +1,45 @@
-from typing import Any
 import os
+from typing import Any
 
+import toml
 import torch
 from torch import Tensor
-import toml
 
+from axe.lcm.data.schema import LCMDataSchema
 from axe.lcm.model.builder import LearnedCostModelBuilder
-from axe.lsm.types import Policy, LSMBounds
+from axe.lsm.types import LSMBounds, Policy
 
 
 class LearnedCostModelLoss(torch.nn.Module):
     def __init__(self, config: dict[str, Any], model_path: str):
         super().__init__()
-        self.penalty_factor = config["ltune"]["penalty_factor"]
-        # TODO: We will need a way for this to be user definable or something
-        # that isn't just straight hardcoded into this loss function
-        # Note that this is the index for H - the total available memory that
-        # could be split between buffer and bloom filters
-        self.mem_budget_idx = 7
+        self.penalty_factor = config["ltuner"]["penalty_factor"]
         self.bounds: LSMBounds = LSMBounds(**config["lsm"]["bounds"])
+        self.policy: Policy = getattr(Policy, config["lsm"]["policy"])
+        min_size_ratio, max_size_ratio = self.bounds.size_ratio_range
+        self.kap_categories = max_size_ratio - min_size_ratio
 
-        lcm_cfg = toml.load(
-            os.path.join(config["io"]["data_dir"], model_path, "axe.toml")
-        )
-        lcm_model = getattr(Policy, lcm_cfg["lsm"]["design"])
-        lcm_bounds: LSMBounds = LSMBounds(**lcm_cfg["lsm"]["bounds"])
-        self.lcm_builder = LearnedCostModelBuilder(
-            size_ratio_range=(
-                lcm_bounds.size_ratio_range[0],
-                lcm_bounds.size_ratio_range[1],
-            ),
-            max_levels=lcm_bounds.max_considered_levels,
+        lcm_cfg = toml.load(os.path.join(model_path, "axe.toml"))
+        self.lcm_bounds: LSMBounds = LSMBounds(**lcm_cfg["lsm"]["bounds"])
+        self.lcm_policy: Policy = getattr(Policy, lcm_cfg["lsm"]["policy"])
+        self.lcm_schema = LCMDataSchema(self.lcm_policy, self.lcm_bounds)
+        self.mem_budget_idx = self.lcm_schema.feat_cols().index("mem_budget")
+
+        # Before building we assert LCM -> LTuner designs are matching
+        assert self.bounds == self.lcm_bounds
+        assert self.policy == self.lcm_policy
+
+        self.lcm = LearnedCostModelBuilder(
+            schema=self.lcm_schema,
             **lcm_cfg["lcm"]["model"],
-        )
-        self.model = self.lcm_builder.build_model(lcm_model)
-
-        data = torch.load(
-            os.path.join(config["io"]["data_dir"], model_path, "best.model")
-        )
-        status = self.model.load_state_dict(data)
-        self.capacity_range = (
-            self.bounds.size_ratio_range[1] - self.bounds.size_ratio_range[0]
-        )
-        self.num_levels = self.bounds.max_considered_levels
-
-        assert self.bounds.size_ratio_range == lcm_bounds.size_ratio_range
-        assert self.bounds.max_considered_levels == lcm_bounds.max_considered_levels
+        ).build(disable_one_hot_encoding=True)
+        data = torch.load(os.path.join(model_path, "best_model.model"),
+                          weights_only=True)
+        status = self.lcm.load_state_dict(data["model_state_dict"])
+        # Check model loaded in correctly then set to evaluation mode
         assert len(status.missing_keys) == 0
         assert len(status.unexpected_keys) == 0
-        self.model.eval()
+        self.lcm.eval()
 
     def calc_mem_penalty(self, label, bpe):
         mem_budget = label[:, self.mem_budget_idx].view(-1, 1)
@@ -70,33 +61,15 @@ class LearnedCostModelLoss(torch.nn.Module):
 
         return bpe, categorical_feats
 
-    def l1_penalty_klsm(self, k_decision: Tensor):
-        batch, _ = k_decision.shape
-        base = torch.zeros((batch, self.num_levels))
-        base = torch.nn.functional.one_hot(
-            base.to(torch.long), num_classes=self.capacity_range
-        )
-        base = base.flatten(start_dim=1)
-
-        if k_decision.get_device() >= 0:  # Tensor on GPU
-            base = base.to(k_decision.device)
-
-        penalty = k_decision - base
-        penalty = penalty.square()
-        penalty = penalty.sum(dim=-1)
-        penalty = penalty.mean()
-
-        return penalty
-
-    def forward(self, pred, label):
-        assert self.model.training is False
+    def forward(self, pred: Tensor, label: Tensor):
+        assert self.lcm.training is False
         # For learned cost model loss, the prediction is the DB configuration
         # and label is the workload and system params
         bpe, categorical_feats = self.split_tuner_out(pred)
         bpe, penalty = self.calc_mem_penalty(label, bpe)
 
         inputs = torch.concat([label, bpe, categorical_feats], dim=-1)
-        out = self.model(inputs)
+        out = self.lcm(inputs)
         out = out.square()
         out = out.sum(dim=-1)
         out = out + penalty

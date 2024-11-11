@@ -8,10 +8,10 @@ from typing import Optional, Tuple
 import polars as pl
 import toml
 import torch
-from axe.lcm.data.schema import LCMDataSchema
-from axe.lcm.model.builder import LearnedCostModelBuilder
 from axe.lsm.types import LSMBounds, Policy
-from axe.util.losses import LossBuilder
+from axe.ltuner.data.schema import LTunerDataSchema
+from axe.ltuner.loss import LearnedCostModelLoss
+from axe.ltuner.model.builder import LTuneModelBuilder
 from axe.util.lr_scheduler import LRSchedulerBuilder
 from axe.util.optimizer import OptimizerBuilder
 from torch import Tensor
@@ -19,7 +19,7 @@ from torch.utils.data import DataLoader, random_split
 from tqdm import tqdm
 
 
-class TrainLCM:
+class TrainLTuner:
     def __init__(self, cfg: dict) -> None:
         self.log: logging.Logger = logging.getLogger(cfg["app"]["name"])
         self.disable_tqdm: bool = cfg["app"]["disable_tqdm"]
@@ -29,8 +29,8 @@ class TrainLCM:
             self.device = torch.device("cuda:0")
         self.policy: Policy = getattr(Policy, cfg["lsm"]["policy"])
         self.bounds: LSMBounds = LSMBounds(**cfg["lsm"]["bounds"])
-        self.schema = LCMDataSchema(self.policy, self.bounds)
-        self.jcfg = cfg["job"]["train_lcm"]
+        self.schema = LTunerDataSchema(self.policy, self.bounds)
+        self.jcfg = cfg["job"]["train_ltuner"]
         self.cfg = cfg
 
         # Build everything we need for training
@@ -40,22 +40,17 @@ class TrainLCM:
         self.scheduler = self._build_scheduler(self.optimizer)
         torch.set_float32_matmul_precision("high")
         self.training_data, self.validate_data = self._build_data()
+        self.train_kwargs = {"temp": 10, "hard": False}
+        self.validate_kwargs = {"temp": 0.01, "hard": True}
 
     def _build_loss_fn(self) -> torch.nn.Module:
-        choice = self.jcfg["loss_fn"]
-        loss = LossBuilder(self.cfg["loss"]).build(choice)
-        self.log.info(f"Loss function: {choice}")
-        if loss is None:
-            self.log.warning(f"Invalid loss function: {choice}")
-            raise KeyError
-        if self.use_gpu and torch.cuda.is_available():
-            loss.to("cuda")
+        loss = LearnedCostModelLoss(self.cfg, self.jcfg["loss_fn_path"]).to(self.device)
 
         return loss
 
     def _build_model(self) -> torch.nn.Module:
-        model = LearnedCostModelBuilder(
-            schema=self.schema, **self.cfg["lcm"]["model"]
+        model = LTuneModelBuilder(
+            schema=self.schema, **self.cfg["ltuner"]["model"]
         ).build()
         # model.compile()
         model.to(self.device)
@@ -107,6 +102,11 @@ class TrainLCM:
         with open(os.path.join(self.jcfg["save_dir"], "axe.toml"), "w") as fid:
             toml.dump(self.cfg, fid)
 
+    def temp_step(self, decay_rate: float = 0.9, floor: float = 1):
+        self.train_kwargs["temp"] *= decay_rate
+        if self.train_kwargs["temp"] < floor:
+            self.train_kwargs["temp"] = floor
+
     def train_step(self, feats: Tensor, labels: Tensor, **kwargs) -> float:
         label = labels.to(self.device)
         feats = feats.to(self.device)
@@ -123,12 +123,13 @@ class TrainLCM:
         total_loss = 0
         pbar = tqdm(self.training_data, ncols=80, disable=self.disable_tqdm)
         for batch, (feats, labels) in enumerate(pbar):
-            loss = self.train_step(feats, labels)
+            loss = self.train_step(feats, labels, **self.train_kwargs)
             if batch % (25) == 0:
                 pbar.set_description(f"training loss {loss:e}")
             total_loss += loss
             if self.scheduler is not None:
                 self.scheduler.step()
+            self.temp_step()
 
         return total_loss / len(self.training_data)
 
@@ -146,7 +147,7 @@ class TrainLCM:
         test_loss = 0
         pbar = tqdm(self.validate_data, ncols=80, disable=self.disable_tqdm)
         for feats, labels in pbar:
-            loss = self.validate_step(feats, labels)
+            loss = self.validate_step(feats, labels, **self.validate_kwargs)
             pbar.set_description(f"validate loss {loss:e}")
             test_loss += loss
 
@@ -200,7 +201,7 @@ def main():
     log: logging.Logger = logging.getLogger(config["app"]["name"])
     log.info(f"Log level: {logging.getLevelName(log.getEffectiveLevel())}")
 
-    TrainLCM(config).run()
+    TrainLTuner(config).run()
 
 
 if __name__ == "__main__":

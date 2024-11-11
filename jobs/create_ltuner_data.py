@@ -8,7 +8,7 @@ import toml
 import pyarrow as pa
 import pyarrow.parquet as pq
 from axe.lsm.types import LSMBounds, Policy
-from axe.ltune.data.schema import LTunerDataSchema
+from axe.ltuner.data.schema import LTunerDataSchema
 
 from tqdm import tqdm
 
