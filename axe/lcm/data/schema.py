@@ -1,3 +1,5 @@
+import polars as pl
+
 import axe.lsm.data_generator as DataGen
 from axe.lsm.cost import Cost
 from axe.lsm.types import LSMBounds, LSMDesign, Policy, System, Workload
@@ -50,6 +52,32 @@ class LCMDataSchema:
             return ["size_ratio"] + cols
         else:
             raise NotImplementedError
+
+    def _preprocess_table(self, table: pl.DataFrame) -> pl.DataFrame:
+        min_size_ratio, _ = self.bounds.size_ratio_range
+        table = table.with_columns(pl.col("size_ratio").sub(min_size_ratio))
+        if self.policy == Policy.QHybrid:
+            table = table.with_columns(pl.col("Q").sub(min_size_ratio - 1))
+        elif self.policy == Policy.Fluid:
+            table = table.with_columns(
+                pl.col("Y").sub(min_size_ratio - 1),
+                pl.col("Z").sub(min_size_ratio - 1),
+            )
+        elif self.policy == Policy.Kapacity:
+            table = table.with_columns(
+                [
+                    pl.col(f"K_{i}").sub(min_size_ratio - 1).clip(0)
+                    for i in range(self.bounds.max_considered_levels)
+                ]
+            )
+        return table
+
+    def read_data(self, parquet_path: str, preprocess: bool = False) -> pl.DataFrame:
+        table = pl.read_parquet(parquet_path)
+        if preprocess:
+            table = self._preprocess_table(table)
+
+        return table
 
     def get_column_names(self) -> list[str]:
         column_names = (

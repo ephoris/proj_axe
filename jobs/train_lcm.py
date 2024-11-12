@@ -74,28 +74,8 @@ class TrainLCM:
             optimizer, self.jcfg["lr_scheduler"]
         )
 
-    def _preprocess_data(self, table: pl.DataFrame):
-        min_size_ratio, _ = self.bounds.size_ratio_range
-        table = table.with_columns(pl.col("size_ratio").sub(min_size_ratio))
-        if self.policy == Policy.QHybrid:
-            table = table.with_columns(pl.col("Q").sub(min_size_ratio - 1))
-        elif self.policy == Policy.Fluid:
-            table = table.with_columns(
-                pl.col("Y").sub(min_size_ratio - 1),
-                pl.col("Z").sub(min_size_ratio - 1),
-            )
-        elif self.policy == Policy.Kapacity:
-            table = table.with_columns(
-                [
-                    pl.col(f"K_{i}").sub(min_size_ratio - 1).clip(0)
-                    for i in range(self.bounds.max_considered_levels)
-                ]
-            )
-        return table
-
     def _build_data(self) -> Tuple[DataLoader, DataLoader]:
-        table = pl.read_parquet(self.jcfg["data_dir"])
-        table = self._preprocess_data(table)
+        table = self.schema.read_data(self.jcfg["data_dir"], preprocess=True)
         dataset = table.to_torch(
             return_type="dataset",
             features=self.schema.feat_cols(),
@@ -144,7 +124,7 @@ class TrainLCM:
         pbar = tqdm(self.training_data, ncols=80, disable=self.disable_tqdm)
         for batch, (feats, labels) in enumerate(pbar):
             loss = self.train_step(feats, labels)
-            if batch % (25) == 0:
+            if batch % (100) == 0:
                 pbar.set_description(f"training loss {loss:e}")
             total_loss += loss
             if self.scheduler is not None:
@@ -163,14 +143,14 @@ class TrainLCM:
 
     def validate_loop(self) -> float:
         self.model.eval()
-        test_loss = 0
+        validate_loss = 0
         pbar = tqdm(self.validate_data, ncols=80, disable=self.disable_tqdm)
         for feats, labels in pbar:
             loss = self.validate_step(feats, labels)
             pbar.set_description(f"validate loss {loss:e}")
-            test_loss += loss
+            validate_loss += loss
 
-        return test_loss / len(self.validate_data)
+        return validate_loss / len(self.validate_data)
 
     def save_model(self, fname: str, **kwargs) -> None:
         save_dict = {
@@ -191,6 +171,9 @@ class TrainLCM:
 
         max_epochs = self.jcfg["max_epochs"]
         loss_min = self.validate_loop()
+        with open(loss_file, "a") as fid:
+            write = csv.writer(fid)
+            write.writerow([0, loss_min, loss_min])
         for epoch in range(max_epochs):
             self.log.info(f"Epoch: [{epoch+1}/{max_epochs}]")
             train_loss = self.train_loop()

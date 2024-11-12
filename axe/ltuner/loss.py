@@ -33,8 +33,10 @@ class LearnedCostModelLoss(torch.nn.Module):
             schema=self.lcm_schema,
             **lcm_cfg["lcm"]["model"],
         ).build(disable_one_hot_encoding=True)
-        data = torch.load(os.path.join(model_path, "best_model.model"),
-                          weights_only=True)
+        data = torch.load(
+            os.path.join(model_path, "best_model.model"),
+            weights_only=True,
+        )
         status = self.lcm.load_state_dict(data["model_state_dict"])
         # Check model loaded in correctly then set to evaluation mode
         assert len(status.missing_keys) == 0
