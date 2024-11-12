@@ -76,7 +76,7 @@ class CreateLTunerData:
             threads = self.num_files
         self.log.debug(f"Using {threads=}")
 
-        if threads == 1:
+        if threads < 2:
             for idx in range(self.num_files):
                 self.generate_file(idx, single_worker=True)
         else:
