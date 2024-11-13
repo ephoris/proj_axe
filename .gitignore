@@ -133,3 +133,6 @@ dmypy.json
 # Ignore saved models and checkpoints
 *.model
 *.pt
+
+# Default data directory ONLY in the root of the project
+/data/
