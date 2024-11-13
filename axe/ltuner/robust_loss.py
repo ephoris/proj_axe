@@ -98,23 +98,13 @@ class LearnedRobustLoss(torch.nn.Module):
             [env_label, bpe.unsqueeze(1), categorical_feats], dim=-1
         )
         out = self.lcm(lcm_input)
-        # print(f"{out=}")
-        # print(f"{eta=}")
-        # print(f"{lamb=}")
         out = (out - eta.unsqueeze(1)) / lamb.unsqueeze(1)
-        # print(f"out - eta / lamb {out=}")
         out = self.kl_div_conj(out)
-        # print(f"kl_div {out=}")
         out = workload * out
-        # print(f"workload * {out=}")
         out = out.sum(dim=-1)
-        # print(f"sum {out=}")
         out = eta + (lamb * rho) + (lamb * out)
-        # print(f"eta + (lamb * rho) + (lamb * out) = {out=}")
         out = out.square()
         out = out + penalty
-        # print(f"penalty {out=}")
         out = out.mean()
-        # print(f"mean {out=}")
 
         return out

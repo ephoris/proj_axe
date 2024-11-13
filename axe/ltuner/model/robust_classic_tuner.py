@@ -5,7 +5,7 @@ from torch import Tensor, nn
 import torch
 
 
-class ClassicTuner(nn.Module):
+class RobustClassicTuner(nn.Module):
     def __init__(
         self,
         num_feats: int,
@@ -32,6 +32,8 @@ class ClassicTuner(nn.Module):
         self.t_decision = nn.Linear(hidden_width, capacity_range)
         self.bits_decision = nn.Linear(hidden_width, 1)
         self.policy_decision = nn.Linear(hidden_width, 2)
+        self.eta_decision = nn.Linear(hidden_width, 1)
+        self.lamb_decision = nn.Linear(hidden_width, 1)
 
         self.capacity_range = capacity_range
         self.num_feats = num_feats
@@ -58,7 +60,10 @@ class ClassicTuner(nn.Module):
         policy = self.policy_decision(out)
         policy = nn.functional.gumbel_softmax(policy, tau=temp, hard=hard)
 
-        out = torch.concat([bits, t, policy], dim=-1)
+        eta = self.eta_decision(out)
+        lamb = self.lamb_decision(out)
+
+        out = torch.concat([eta, lamb, bits, t, policy], dim=-1)
 
         return out
 

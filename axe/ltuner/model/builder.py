@@ -6,6 +6,7 @@ from axe.ltuner.data.schema import LTunerDataSchema
 from axe.ltuner.model import ClassicTuner, QLSMTuner, KapLSMTuner, YZLSMTuner
 from axe.ltuner.model.kap_robust_tuner import KapLSMRobustTuner
 from axe.ltuner.model.kap_robust_tuner_latent import KapLSMRobustTunerLatent
+from axe.ltuner.model.robust_classic_tuner import RobustClassicTuner
 
 
 class LTuneModelBuilder:
@@ -57,8 +58,11 @@ class LTuneModelBuilder:
             kwargs["num_kap"] = self.max_levels
             kwargs["categorical_mode"] = self.categorical_mode
             if robust:
-                return KapLSMRobustTunerLatent(**kwargs)
-                # return KapLSMRobustTuner(**kwargs)
+                # return KapLSMRobustTunerLatent(**kwargs)
+                return KapLSMRobustTuner(**kwargs)
+
+        if robust and (self.schema.policy == Policy.Classic):
+            return RobustClassicTuner(**kwargs)
 
         model = model_class(**kwargs)
 

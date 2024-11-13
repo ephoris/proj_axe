@@ -144,6 +144,7 @@ class KapLSMRobustTunerLatent(nn.Module):
         k = torch.flatten(k, start_dim=1)
 
         latent = torch.normal(0, 1, size=x[:, 0:1].shape)
+        latent = latent.to(x.device)
         eta = self.eta_decision(latent)
         lamb = self.lamb_decision(latent)
 
