@@ -103,7 +103,7 @@ class TrainLTuner:
         with open(os.path.join(self.jcfg["save_dir"], "axe.toml"), "w") as fid:
             toml.dump(self.cfg, fid)
 
-    def temp_step(self, decay_rate: float = 0.9, floor: float = 1):
+    def temp_step(self, decay_rate: float = 0.95, floor: float = 1):
         self.train_kwargs["temp"] *= decay_rate
         if self.train_kwargs["temp"] < floor:
             self.train_kwargs["temp"] = floor
@@ -130,7 +130,6 @@ class TrainLTuner:
             total_loss += loss
             if self.scheduler is not None:
                 self.scheduler.step()
-            self.temp_step()
 
         return total_loss / len(self.training_data)
 
@@ -175,6 +174,7 @@ class TrainLTuner:
         loss_min = self.validate_loop()
         for epoch in range(max_epochs):
             self.log.info(f"Epoch: [{epoch+1}/{max_epochs}]")
+            self.log.debug(f"{self.train_kwargs=}")
             train_loss = self.train_loop()
             curr_loss = self.validate_loop()
             self.log.info(f"Training loss: {train_loss}")
@@ -189,6 +189,7 @@ class TrainLTuner:
             with open(loss_file, "a") as fid:
                 write = csv.writer(fid)
                 write.writerow([epoch + 1, train_loss, curr_loss])
+            self.temp_step()
 
         self.log.info("Training finished")
 
