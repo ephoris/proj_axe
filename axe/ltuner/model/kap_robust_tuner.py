@@ -96,17 +96,12 @@ class KapLSMRobustTuner(nn.Module):
         num_elem = x[:, 8]  # N
         entry_size = x[:, 6]  # E
         min_bits = torch.zeros(bits.shape).to(bits.device)
-        bits = bits.nan_to_num(nan=0)
         bits = torch.clamp(bits, min=min_bits, max=(max_bits - 0.1))
-        # print(f"{bits=}")
         mbuff = (max_bits - bits) * num_elem
-        # print(f"{mbuff=}")
         level = torch.log(((num_elem * entry_size) / mbuff) + 1)
-        # print(f"{level=}")
         level = level / torch.log(size_ratio)
         level = torch.ceil(level)
         level = torch.clamp(level, min=1)
-        level = level.nan_to_num(nan=1)
 
         return level
 
@@ -121,11 +116,19 @@ class KapLSMRobustTuner(nn.Module):
         return mask, default_values
 
     def _forward_impl(self, x: Tensor, temp=1e-3, hard=False) -> Tensor:
+        # print(f'input: {x=}')
         out = self.in_norm(x)
+        # print(f'in_norm: {out=}')
+        # print(f'in_norm.weight {self.in_norm.weight=}')
+        # print(f'in_norm.bias {self.in_norm.bias=}')
         out = self.in_layer(out)
+        # print(f'in_layer: {out=}')
         out = self.relu(out)
+        # print(f'relu: {out=}')
         out = self.dropout(out)
+        # print(f'droput: {out=}')
         out = self.hidden(out)
+        # print(f'hidden: {out=}')
 
         bits_out = self.bits_path(out)
         bits = self.bits_decision(bits_out)
@@ -141,20 +144,15 @@ class KapLSMRobustTuner(nn.Module):
         k = self.k_decision(k_out, temp=temp, hard=hard)
 
         max_levels = self.calc_max_level(x, bits, t) - 1
-        # print(f"Before long conv. {max_levels=}")
         max_levels = max_levels.to(torch.long)
-        # print(f"After long conv. {max_levels=}")
         mask, default = self.get_mask_and_default(max_levels)
-        # Set K values outside actual level to 1
         k = mask.unsqueeze(-1) * k
         k[mask == 0] += default.to(k.device)
 
         k = torch.flatten(k, start_dim=1)
 
         eta = self.eta_decision(out)
-        lamb = self.lamb_decision(out) + 1
-        print(f"{eta=}")
-        print(f"{lamb=}")
+        lamb = self.lamb_decision(out)
 
         out = torch.concat([eta, lamb, bits, t, k], dim=-1)
 

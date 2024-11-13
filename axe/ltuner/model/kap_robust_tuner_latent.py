@@ -38,7 +38,7 @@ class KapDecision(nn.Module):
         return out
 
 
-class KapLSMTuner(nn.Module):
+class KapLSMRobustTunerLatent(nn.Module):
     def __init__(
         self,
         num_feats: int,
@@ -70,6 +70,8 @@ class KapLSMTuner(nn.Module):
         self.k_decision = KapDecision(hidden_width, capacity_range, num_kap)
         self.t_decision = nn.Linear(hidden_width, capacity_range)
         self.bits_decision = nn.Linear(hidden_width, 1)
+        self.eta_decision = nn.Sequential(nn.Linear(1, 4), nn.Linear(4, 1))
+        self.lamb_decision = nn.Sequential(nn.Linear(1, 4), nn.Linear(4, 1))
 
         self.capacity_range = capacity_range
         self.num_feats = num_feats
@@ -103,6 +105,16 @@ class KapLSMTuner(nn.Module):
 
         return level
 
+    def get_mask_and_default(self, max_levels: Tensor):
+        mask = nn.functional.one_hot(max_levels, num_classes=self.num_kap)
+        cum_sum = torch.cumsum(mask, dim=1)
+        mask = 1 - cum_sum + mask  # Sets all values AFTER max_level to 1
+        default_values = torch.zeros(self.capacity_range)
+        default_values[0] = 1
+        default_values = default_values.to(torch.long)
+
+        return mask, default_values
+
     def _forward_impl(self, x: Tensor, temp=1e-3, hard=False) -> Tensor:
         out = self.in_norm(x)
         out = self.in_layer(out)
@@ -123,23 +135,19 @@ class KapLSMTuner(nn.Module):
         k_out = self.k_path(out)
         k = self.k_decision(k_out, temp=temp, hard=hard)
 
-        max_levels = self.calc_max_level(x, bits, t)
-        max_levels = max_levels - 1
+        max_levels = self.calc_max_level(x, bits, t) - 1
         max_levels = max_levels.to(torch.long)
-
-        mask = nn.functional.one_hot(max_levels, num_classes=self.num_kap)
-        cum_sum = torch.cumsum(mask, dim=1)
-        mask = 1 - cum_sum + mask  # Sets all values AFTER max_level to 1
-        default = torch.zeros(self.capacity_range)
-        default[0] = 1
-        default = default.to(k.device).to(torch.long)
-        # Set K values outside actual level to 1
+        mask, default = self.get_mask_and_default(max_levels)
         k = mask.unsqueeze(-1) * k
-        k[mask == 0] += default
+        k[mask == 0] += default.to(k.device)
 
         k = torch.flatten(k, start_dim=1)
 
-        out = torch.concat([bits, t, k], dim=-1)
+        latent = torch.normal(0, 1, size=x[:, 0:1].shape)
+        eta = self.eta_decision(latent)
+        lamb = self.lamb_decision(latent)
+
+        out = torch.concat([eta, lamb, bits, t, k], dim=-1)
 
         return out
 
