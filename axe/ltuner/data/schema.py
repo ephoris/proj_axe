@@ -39,7 +39,7 @@ class LTunerDataSchema:
     def sample_row(self) -> list:
         workload: Workload = self.gen.sample_workload()
         system: System = self.gen.sample_system()
-        rho: float = random.randrange(start=0, stop=2)
+        rho: float = self.gen.rng.uniform(low=0, high=2)
 
         line = [
             workload.z0,
