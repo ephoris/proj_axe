@@ -37,7 +37,7 @@ def get_h_bounds(bounds: LSMBounds, system: Optional[System] = None) -> Tuple:
 
 
 def get_lambda_bounds() -> Tuple:
-    return 0.001, np.inf
+    return 0.1, np.inf
 
 
 def get_eta_bounds() -> Tuple:
@@ -71,8 +71,8 @@ def get_bounds(
     if robust:
         lambda_bounds = get_lambda_bounds()
         eta_bounds = get_eta_bounds()
-        lb += (lambda_bounds[0], eta_bounds[0])
-        ub += (lambda_bounds[1], eta_bounds[1])
+        lb = (eta_bounds[0], lambda_bounds[0]) + lb
+        ub = (eta_bounds[1], lambda_bounds[1]) + ub
 
     return SciOpt.Bounds(lb=lb, ub=ub, keep_feasible=True)  # type: ignore
 

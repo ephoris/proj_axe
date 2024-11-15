@@ -8,10 +8,10 @@ from axe.lsm.types import LSMDesign, Policy, System, LSMBounds, Workload
 from .util import kl_div_con
 from .util import get_bounds
 
-H_DEFAULT = 5
-T_DEFAULT = 10
-LAMBDA_DEFAULT = 1
-ETA_DEFAULT = 1
+H_DEFAULT = 3
+T_DEFAULT = 5
+LAMBDA_DEFAULT = 10
+ETA_DEFAULT = 10
 
 
 class ClassicSolver:
@@ -27,10 +27,10 @@ class ClassicSolver:
         x: np.ndarray,
         policy: Policy,
         system: System,
-        rho: float,
         workload: Workload,
+        rho: float,
     ) -> float:
-        h, T, lamb, eta = x
+        eta, lamb, h, T, = x
         design = LSMDesign(bits_per_elem=h, size_ratio=T, policy=policy, kapacity=())
         query_cost = 0
         query_cost += workload.z0 * kl_div_con(
@@ -64,10 +64,10 @@ class ClassicSolver:
     def get_robust_design(
         self,
         system: System,
-        rho: float,
         workload: Workload,
+        rho: float,
         init_args: np.ndarray = np.array(
-            [H_DEFAULT, T_DEFAULT, LAMBDA_DEFAULT, ETA_DEFAULT]
+            [ETA_DEFAULT, LAMBDA_DEFAULT, H_DEFAULT, T_DEFAULT]
         ),
         minimizer_kwargs: dict = {},
         callback_fn: Optional[Callable] = None,
@@ -82,7 +82,7 @@ class ClassicSolver:
                 system=system,
                 robust=True,
             ),
-            "options": {"ftol": 1e-6, "disp": False, "maxiter": 1000},
+            "options": {"ftol": 1e-12, "disp": False, "maxiter": 1000},
         }
         default_kwargs.update(minimizer_kwargs)
 
@@ -90,7 +90,7 @@ class ClassicSolver:
         assert len(self.policies) > 0
         for policy in self.policies:
             sol = SciOpt.minimize(
-                fun=lambda x: self.robust_objective(x, policy, system, rho, workload),
+                fun=lambda x: self.robust_objective(x, policy, system, workload, rho),
                 x0=init_args,
                 callback=callback_fn,
                 **default_kwargs
@@ -98,8 +98,8 @@ class ClassicSolver:
             if sol.fun < min_sol or (design is None and solution is None):
                 min_sol = sol.fun
                 design = LSMDesign(
-                    bits_per_elem=sol.x[0],
-                    size_ratio=sol.x[1],
+                    bits_per_elem=sol.x[2],
+                    size_ratio=sol.x[3],
                     policy=policy,
                     kapacity=(),
                 )
@@ -124,7 +124,7 @@ class ClassicSolver:
                 system=system,
                 robust=False,
             ),
-            "options": {"ftol": 1e-6, "disp": False, "maxiter": 1000},
+            "options": {"ftol": 1e-12, "disp": False, "maxiter": 1000},
         }
         default_kwargs.update(minimizer_kwargs)
 

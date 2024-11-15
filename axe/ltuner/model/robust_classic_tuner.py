@@ -53,12 +53,13 @@ class RobustClassicTuner(nn.Module):
 
         bits = self.bits_decision(out)
         t = self.t_decision(out)
+        policy = self.policy_decision(out)
         if self.categorical_mode == "reinmax":
             t, _ = reinmax(t, tau=temp)
+            policy, _ = reinmax(policy, tau=temp)
         else:  # categorical_mode == 'gumbel'
             t = nn.functional.gumbel_softmax(t, tau=temp, hard=hard)
-        policy = self.policy_decision(out)
-        policy = nn.functional.gumbel_softmax(policy, tau=temp, hard=hard)
+            policy = nn.functional.gumbel_softmax(policy, tau=temp, hard=hard)
 
         eta = self.eta_decision(out)
         lamb = self.lamb_decision(out)

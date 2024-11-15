@@ -28,9 +28,9 @@ class KLSMSolver:
         rho: float,
         workload: Workload,
     ) -> float:
-        h, t = x[0:2]
-        kaps = x[2:-2].tolist()
-        lamb, eta = x[-2:]
+        lamb, eta = x[0:2]
+        h, t = x[2:4]
+        kaps = x[4:].tolist()
         design = LSMDesign(
             bits_per_elem=h, size_ratio=t, kapacity=kaps, policy=Policy.Kapacity
         )
@@ -70,17 +70,43 @@ class KLSMSolver:
         self,
         system: System,
         rho: float,
-        z0: float,
-        z1: float,
-        q: float,
-        w: float,
+        workload: Workload,
         init_args: np.ndarray = np.array(
-            [H_DEFAULT, T_DEFAULT, LAMBDA_DEFAULT, ETA_DEFAULT]
+            [LAMBDA_DEFAULT, ETA_DEFAULT, H_DEFAULT, T_DEFAULT, K_DEFAULT]
         ),
         minimizer_kwargs: dict = {},
         callback_fn: Optional[Callable] = None,
     ) -> Tuple[LSMDesign, SciOpt.OptimizeResult]:
-        raise NotImplementedError
+        max_levels = self.bounds.max_considered_levels
+        default_kwargs = {
+            "method": "SLSQP",
+            "bounds": get_bounds(
+                bounds=self.bounds,
+                system=system,
+                robust=True,
+            ),
+            "options": {"ftol": 1e-6, "disp": False, "maxiter": 1000},
+        }
+        default_kwargs.update(minimizer_kwargs)
+
+        kap_val = init_args[-1]
+        init_args = np.concatenate(
+            (init_args[0:4], np.array([kap_val for _ in range(max_levels)]))
+        )
+        solution = SciOpt.minimize(
+            fun=lambda x: self.robust_objective(x, system, rho, workload),
+            x0=init_args,
+            callback=callback_fn,
+            **default_kwargs
+        )
+        design = LSMDesign(
+            bits_per_elem=solution.x[2],
+            size_ratio=solution.x[3],
+            policy=Policy.Kapacity,
+            kapacity=solution.x[4:].tolist(),
+        )
+
+        return design, solution
 
     def get_nominal_design(
         self,
