@@ -14,7 +14,7 @@ class RobustClassicTuner(nn.Module):
         hidden_width: int = 32,
         dropout_percentage: float = 0,
         categorical_mode: str = "gumbel",
-        norm_layer: Optional[Callable[..., nn.Module]] = None
+        norm_layer: Optional[Callable[..., nn.Module]] = None,
     ) -> None:
         super().__init__()
         if norm_layer is None:
@@ -32,8 +32,10 @@ class RobustClassicTuner(nn.Module):
         self.t_decision = nn.Linear(hidden_width, capacity_range)
         self.bits_decision = nn.Linear(hidden_width, 1)
         self.policy_decision = nn.Linear(hidden_width, 2)
-        self.eta_decision = nn.Linear(hidden_width, 1)
-        self.lamb_decision = nn.Linear(hidden_width, 1)
+        self.eta_decision = nn.Linear(8, 1)
+        self.lamb_decision = nn.Linear(8, 1)
+        # self.eta_decision = nn.Linear(hidden_width, 1)
+        # self.lamb_decision = nn.Linear(hidden_width, 1)
 
         self.capacity_range = capacity_range
         self.num_feats = num_feats
@@ -61,8 +63,12 @@ class RobustClassicTuner(nn.Module):
             t = nn.functional.gumbel_softmax(t, tau=temp, hard=hard)
             policy = nn.functional.gumbel_softmax(policy, tau=temp, hard=hard)
 
-        eta = self.eta_decision(out)
-        lamb = self.lamb_decision(out)
+        latent = torch.normal(0, 1, size=(x.shape[0], 8))
+        latent = latent.to(x.device)
+        eta = self.eta_decision(latent)
+        lamb = self.lamb_decision(latent)
+        # eta = self.eta_decision(out)
+        # lamb = self.lamb_decision(out)
 
         out = torch.concat([eta, lamb, bits, t, policy], dim=-1)
 
