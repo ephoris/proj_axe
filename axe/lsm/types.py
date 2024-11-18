@@ -12,7 +12,7 @@ class Policy(enum.Enum):
     Fluid = 5
 
 
-@dataclass(frozen=True)
+@dataclass()
 class System():
     entry_size: int = 8192
     selectivity: float = 4e-7
@@ -22,7 +22,7 @@ class System():
     phi: float = 1.0  # Read/Write asymmetry coefficient
 
 
-@dataclass(kw_only=True, frozen=True)
+@dataclass(kw_only=True)
 class LSMDesign:
     bits_per_elem: float
     size_ratio: float
@@ -38,10 +38,10 @@ class LSMDesign:
             assert len(self.kapacity) == 2
 
 
-@dataclass(frozen=True)
+@dataclass()
 class LSMBounds:
     max_considered_levels: int = 20
-    bits_per_elem_range: Tuple[int, int] = (1, 10)
+    bits_per_elem_range: Tuple[float, float] = (1, 10)
     size_ratio_range: Tuple[int, int] = (2, 31)
     page_sizes: Tuple = (4, 8, 16)
     entry_sizes: Tuple = (1024, 2048, 4096, 8192)

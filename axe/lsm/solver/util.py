@@ -19,28 +19,11 @@ def kl_div_con(input: float):
     return np.exp(input) - 1
 
 
-def get_t_bounds(bounds: LSMBounds) -> Tuple:
-    t_ub = bounds.size_ratio_range[1]
-    t_lb = bounds.size_ratio_range[0]
-
-    return t_lb, t_ub
-
-
-def get_h_bounds(bounds: LSMBounds, system: Optional[System] = None) -> Tuple:
-    h_lb = bounds.bits_per_elem_range[0]
-    if system is None:
-        h_ub = bounds.bits_per_elem_range[1] - 0.1
-    else:
-        h_ub = system.mem_budget - 0.1
-
-    return h_lb, h_ub
-
-
-def get_lambda_bounds() -> Tuple:
+def get_lambda_bounds() -> Tuple[float, float]:
     return 0.1, np.inf
 
 
-def get_eta_bounds() -> Tuple:
+def get_eta_bounds() -> Tuple[float, float]:
     return -np.inf, np.inf
 
 
@@ -50,8 +33,11 @@ def get_bounds(
     system: Optional[System] = None,
     robust: bool = False,
 ) -> SciOpt.Bounds:
-    t_bounds = get_t_bounds(bounds)
-    h_bounds = get_h_bounds(bounds, system)
+    t_bounds = bounds.size_ratio_range
+    if system is None:
+        h_bounds = (bounds.bits_per_elem_range[0], bounds.bits_per_elem_range[1] - 0.1)
+    else:
+        h_bounds = (bounds.bits_per_elem_range[0], system.mem_budget - 0.1)
 
     lb = (h_bounds[0], t_bounds[0])
     ub = (h_bounds[1], t_bounds[1] - 1)
@@ -76,6 +62,7 @@ def get_bounds(
 
     return SciOpt.Bounds(lb=lb, ub=ub, keep_feasible=True)  # type: ignore
 
+
 def get_default_decision_vars(policy: Policy, max_levels: int) -> np.ndarray:
     out = [H_DEFAULT, T_DEFAULT]
     if policy == Policy.Kapacity:
@@ -86,4 +73,3 @@ def get_default_decision_vars(policy: Policy, max_levels: int) -> np.ndarray:
         out += [Q_DEFAULT]
 
     return np.array(out)
-
