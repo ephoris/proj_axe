@@ -5,7 +5,7 @@ from torch import Tensor, nn
 import torch
 
 
-class RobustClassicTuner(nn.Module):
+class RobustClassicTunerSampler(nn.Module):
     def __init__(
         self,
         num_feats: int,
@@ -32,8 +32,8 @@ class RobustClassicTuner(nn.Module):
         self.t_decision = nn.Linear(hidden_width, capacity_range)
         self.bits_decision = nn.Linear(hidden_width, 1)
         self.policy_decision = nn.Linear(hidden_width, 2)
-        self.eta_decision = nn.Linear(8, 1)
-        self.lamb_decision = nn.Linear(8, 1)
+        self.lagrangian_mu = nn.Linear(32, 2)
+        self.lagrangian_sigma = nn.Linear(32, 2)
 
         self.capacity_range = capacity_range
         self.num_feats = num_feats
@@ -61,12 +61,13 @@ class RobustClassicTuner(nn.Module):
             t = nn.functional.gumbel_softmax(t, tau=temp, hard=hard)
             policy = nn.functional.gumbel_softmax(policy, tau=temp, hard=hard)
 
-        latent = torch.normal(0, 1, size=(x.shape[0], 8))
-        latent = latent.to(x.device)
-        eta = self.eta_decision(latent)
-        lamb = self.lamb_decision(latent)
+        epsilon = torch.normal(0, 1, size=(x.shape[0], 2))
+        lagragian_input = torch.ones(size=(x.shape[0], 32))
+        mu = self.lagrangian_mu(lagragian_input).to(x.device)
+        sigma = self.lagrangian_sigma(lagragian_input).to(x.device)
+        lagrangians = mu + (epsilon * sigma)
 
-        out = torch.concat([eta, lamb, bits, t, policy], dim=-1)
+        out = torch.concat([lagrangians, bits, t, policy], dim=-1)
 
         return out
 

@@ -7,6 +7,7 @@ from axe.ltuner.model import ClassicTuner, QLSMTuner, KapLSMTuner, YZLSMTuner
 from axe.ltuner.model.kap_robust_tuner import KapLSMRobustTuner
 from axe.ltuner.model.kap_robust_tuner_latent import KapLSMRobustTunerLatent
 from axe.ltuner.model.robust_classic_tuner import RobustClassicTuner
+from axe.ltuner.model.robust_classic_sampling import RobustClassicTunerSampler
 
 
 class LTuneModelBuilder:
@@ -62,7 +63,8 @@ class LTuneModelBuilder:
                 return KapLSMRobustTuner(**kwargs)
 
         if robust and (self.schema.policy == Policy.Classic):
-            return RobustClassicTuner(**kwargs)
+            return RobustClassicTunerSampler(**kwargs)
+            # return RobustClassicTuner(**kwargs)
 
         model = model_class(**kwargs)
 
