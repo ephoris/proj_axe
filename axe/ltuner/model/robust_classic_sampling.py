@@ -32,8 +32,8 @@ class RobustClassicTunerSampler(nn.Module):
         self.t_decision = nn.Linear(hidden_width, capacity_range)
         self.bits_decision = nn.Linear(hidden_width, 1)
         self.policy_decision = nn.Linear(hidden_width, 2)
-        self.lagrangian_mu = nn.Linear(32, 2)
-        self.lagrangian_sigma = nn.Linear(32, 2)
+        self.lagrangian_mu = nn.Linear(num_feats, 2)
+        self.lagrangian_sigma = nn.Linear(num_feats, 2)
 
         self.capacity_range = capacity_range
         self.num_feats = num_feats
@@ -44,8 +44,8 @@ class RobustClassicTunerSampler(nn.Module):
                 nn.init.xavier_normal_(module.weight)
 
     def _forward_impl(self, x: Tensor, temp=1e-3, hard=False) -> Tensor:
-        out = self.in_norm(x)
-        out = self.in_layer(out)
+        normed_x = self.in_norm(x)
+        out = self.in_layer(normed_x)
         out = self.relu(out)
         out = self.dropout(out)
         out = self.hidden(out)
@@ -61,10 +61,9 @@ class RobustClassicTunerSampler(nn.Module):
             t = nn.functional.gumbel_softmax(t, tau=temp, hard=hard)
             policy = nn.functional.gumbel_softmax(policy, tau=temp, hard=hard)
 
-        epsilon = torch.normal(0, 1, size=(x.shape[0], 2))
-        lagragian_input = torch.ones(size=(x.shape[0], 32))
-        mu = self.lagrangian_mu(lagragian_input).to(x.device)
-        sigma = self.lagrangian_sigma(lagragian_input).to(x.device)
+        epsilon = torch.normal(0, 1, size=(x.shape[0], 2)).to(x.device)
+        mu = self.lagrangian_mu(normed_x)
+        sigma = self.lagrangian_sigma(normed_x)
         lagrangians = mu + (epsilon * sigma)
 
         out = torch.concat([lagrangians, bits, t, policy], dim=-1)

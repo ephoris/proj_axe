@@ -176,8 +176,8 @@ class TrainRobustLTuner:
             self.log.info(f"Epoch: [{epoch+1}/{max_epochs}]")
             train_loss = self.train_loop()
             curr_loss = self.validate_loop()
-            self.log.info(f"Training loss: {train_loss}")
-            self.log.info(f"Validate loss: {curr_loss}")
+            self.log.info(f"Training loss: {train_loss:.5e}")
+            self.log.info(f"Validate loss: {curr_loss:.5e}")
             if not self.jcfg["no_checkpoint"]:
                 self.save_model(f"checkpoints/epoch{epoch:02d}.model", loss=curr_loss)
 
