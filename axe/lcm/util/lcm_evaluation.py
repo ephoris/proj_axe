@@ -37,37 +37,37 @@ class LCMEvalUtil:
             self.bounds.size_ratio_range[1],
         )
 
-    def gen_random_sample(self):
-        row = {}
-        workload = self.scehma.gen.sample_workload()
-        system: System = self.schema.gen.sample_system()
-        design: LSMDesign = self.schema.gen.sample_design(system)
-        cost_lcm = self.eval_lcm(design, system, workload)
-        cost_acm = self.cf.calc_cost(design, system, workload)
-        row = {
-            "z0": workload.z0,
-            "z1": workload.z1,
-            "q": workload.q,
-            "w": workload.w,
-            "B": system.B,
-            "s": system.s,
-            "E": system.E,
-            "H": system.H,
-            "N": system.N,
-            "h": design.h,
-            "T": design.T,
-        }
-        if design.policy in (Policy.Tiering, Policy.Leveling):
-            row["policy"] = design.policy.value
-        elif design.policy == Policy.KHybrid:
-            for idx, k in enumerate(design.K):
-                row[f"K_{idx}"] = k
-        elif design.policy == Policy.QFixed:
-            row["Q"] = design.Q
-        elif design.policy == Policy.YZHybrid:
-            row["Y"] = design.Y
-            row["Z"] = design.Z
-        row["cost_lcm"] = cost_lcm
-        row["cost_acm"] = cost_acm
-
-        return row, design, system
+    # def gen_random_sample(self):
+    #     row = {}
+    #     workload = self.scehma.gen.sample_workload()
+    #     system: System = self.schema.gen.sample_system()
+    #     design: LSMDesign = self.schema.gen.sample_design(system)
+    #     cost_lcm = self.eval_lcm(design, system, workload)
+    #     cost_acm = self.cf.calc_cost(design, system, workload)
+    #     row = {
+    #         "z0": workload.z0,
+    #         "z1": workload.z1,
+    #         "q": workload.q,
+    #         "w": workload.w,
+    #         "B": system.B,
+    #         "s": system.s,
+    #         "E": system.E,
+    #         "H": system.H,
+    #         "N": system.N,
+    #         "h": design.h,
+    #         "T": design.T,
+    #     }
+    #     if design.policy in (Policy.Tiering, Policy.Leveling):
+    #         row["policy"] = design.policy.value
+    #     elif design.policy == Policy.KHybrid:
+    #         for idx, k in enumerate(design.K):
+    #             row[f"K_{idx}"] = k
+    #     elif design.policy == Policy.QFixed:
+    #         row["Q"] = design.Q
+    #     elif design.policy == Policy.YZHybrid:
+    #         row["Y"] = design.Y
+    #         row["Z"] = design.Z
+    #     row["cost_lcm"] = cost_lcm
+    #     row["cost_acm"] = cost_acm
+    #
+    #     return row, design, system
