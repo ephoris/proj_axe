@@ -5,7 +5,7 @@ from torch import Tensor, nn
 import torch
 
 
-class RobustClassicTuner(nn.Module):
+class RCLatent(nn.Module):
     def __init__(
         self,
         num_feats: int,
@@ -32,8 +32,9 @@ class RobustClassicTuner(nn.Module):
         self.t_decision = nn.Linear(hidden_width, capacity_range)
         self.bits_decision = nn.Linear(hidden_width, 1)
         self.policy_decision = nn.Linear(hidden_width, 2)
-        self.eta_decision = nn.Linear(hidden_width, 1)
-        self.lamb_decision = nn.Linear(hidden_width, 1)
+        self.eta = nn.Linear(8, 2)
+        self.lamb = nn.Linear(8, 2)
+        # self.lagrangians = nn.Linear(num_feats, 2)
 
         self.capacity_range = capacity_range
         self.num_feats = num_feats
@@ -44,8 +45,8 @@ class RobustClassicTuner(nn.Module):
                 nn.init.xavier_normal_(module.weight)
 
     def _forward_impl(self, x: Tensor, temp=1e-3, hard=False) -> Tensor:
-        out = self.in_norm(x)
-        out = self.in_layer(out)
+        normed_x = self.in_norm(x)
+        out = self.in_layer(normed_x)
         out = self.relu(out)
         out = self.dropout(out)
         out = self.hidden(out)
@@ -61,8 +62,9 @@ class RobustClassicTuner(nn.Module):
             t = nn.functional.gumbel_softmax(t, tau=temp, hard=hard)
             policy = nn.functional.gumbel_softmax(policy, tau=temp, hard=hard)
 
-        eta = self.eta_decision(out)
-        lamb = self.lamb_decision(out)
+        z = torch.normal(0, 1, size=(x.shape[0], 8)).to(x.device)
+        eta = self.eta(z)
+        lamb = self.lamb(z)
 
         out = torch.concat([eta, lamb, bits, t, policy], dim=-1)
 

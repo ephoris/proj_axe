@@ -52,7 +52,7 @@ class TrainRobustLTuner:
     def _build_model(self) -> torch.nn.Module:
         model = LTuneModelBuilder(
             schema=self.schema, **self.cfg["ltuner"]["model"]
-        ).build(robust=True)
+        ).build(robust=True, override="RobustClassicTunerSampler")
         model.to(self.device)
 
         return model

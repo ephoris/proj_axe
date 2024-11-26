@@ -26,6 +26,28 @@ class LCMWrapper:
         system: System,
         workload: Workload,
     ) -> Tensor:
+        wl = [workload.z0, workload.z1, workload.q, workload.w]
+        sys = [
+            system.entries_per_page,
+            system.selectivity,
+            system.entry_size,
+            system.mem_budget,
+            system.num_entries,
+        ]
+        if design.policy in (Policy.Kapacity, Policy.Fluid, Policy.QHybrid):
+            d = [design.bits_per_elem, design.size_ratio] + list(design.kapacity)
+        else:  # design.policy in (Policy.Tiering, Policy.Leveling)
+            d = [design.bits_per_elem, design.size_ratio, design.policy.value]
+        rv = Tensor(wl + sys + d)
+
+        return rv
+
+    def convert_to_tensor_with_one_hot(
+        self,
+        design: LSMDesign,
+        system: System,
+        workload: Workload,
+    ) -> Tensor:
         min_t, max_t = self.bounds.size_ratio_range
         categories = max_t - min_t
         wl = [workload.z0, workload.z1, workload.q, workload.w]
@@ -65,11 +87,15 @@ class LCMWrapper:
         design: LSMDesign,
         system: System,
         workload: Workload,
-    ) -> float:
-        x = self.convert_to_tensor(design=design, system=system, workload=workload)
+    ) -> Tensor:
+        if self.model.disable_one_hot_encoding:
+            x = self.convert_to_tensor_with_one_hot(
+                design=design, system=system, workload=workload
+            )
+        else:
+            x = self.convert_to_tensor(design=design, system=system, workload=workload)
         x = x.to(torch.float).view(1, -1)
         with torch.no_grad():
             pred = self.model(x)
-            pred = pred.sum().item()
 
         return pred

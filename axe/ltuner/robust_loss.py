@@ -99,7 +99,7 @@ class LearnedRobustLoss(torch.nn.Module):
         )
         out = self.lcm(lcm_input)
         out = out / workload
-        out = (out - eta.unsqueeze(1)) / lamb.unsqueeze(1)
+        out = (out - eta.unsqueeze(1)) / lamb.unsqueeze(1).clamp(min=1)
         out = self.kl_div_conj(out)
         out = workload * out
         out = out.sum(dim=-1)
