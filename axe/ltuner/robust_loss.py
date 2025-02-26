@@ -58,7 +58,7 @@ class LearnedRobustLoss(torch.nn.Module):
 
     def split_label(self, label):
         rho = label[:, self.rho_idx]
-        workload = label[:, 0:4].clamp(min=1e-6)  # TODO Andy stop hardcoding stupid stuff
+        workload = label[:, 0:4]  # TODO Andy stop hardcoding stupid stuff
         env_label = label[:, : self.rho_idx]
 
         return rho, workload, env_label
@@ -98,7 +98,7 @@ class LearnedRobustLoss(torch.nn.Module):
             [env_label, bpe.unsqueeze(1), categorical_feats], dim=-1
         )
         out = self.lcm(lcm_input)
-        out = out / workload
+        out = out / (workload.clamp(min=1e-4))
         out = (out - eta.unsqueeze(1)) / lamb.unsqueeze(1).clamp(min=1)
         out = self.kl_div_conj(out)
         out = workload * out

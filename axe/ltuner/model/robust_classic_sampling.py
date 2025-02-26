@@ -42,7 +42,7 @@ class RobustClassicTunerSampler(nn.Module):
 
         for module in self.modules():
             if isinstance(module, nn.Linear):
-                nn.init.xavier_normal_(module.weight)
+                nn.init.kaiming_normal_(module.weight)
 
     def _forward_impl(self, x: Tensor, temp=1e-3, hard=False) -> Tensor:
         normed_x = self.in_norm(x)

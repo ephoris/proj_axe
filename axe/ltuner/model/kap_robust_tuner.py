@@ -80,7 +80,7 @@ class KapLSMRobustTuner(nn.Module):
 
         for module in self.modules():
             if isinstance(module, nn.Linear):
-                nn.init.xavier_normal_(module.weight)
+                nn.init.kaiming_normal_(module.weight)
 
     def calc_max_level(
         self,

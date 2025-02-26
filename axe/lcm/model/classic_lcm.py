@@ -49,7 +49,7 @@ class ClassicLCM(nn.Module):
 
         for module in self.modules():
             if isinstance(module, nn.Linear):
-                nn.init.xavier_normal_(module.weight)
+                nn.init.kaiming_normal_(module.weight)
 
     def _split_input(self, x: Tensor) -> Tuple[Tensor, Tensor, Tensor]:
         t_boundary = self.num_feats - 2
