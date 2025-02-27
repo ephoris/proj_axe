@@ -50,7 +50,7 @@ def get_bounds(
     elif policy == Policy.Kapacity:
         max_levels: int = bounds.max_considered_levels
         lb += tuple(t_bounds[0] - 1 for _ in range(max_levels))
-        ub += tuple(t_bounds[1] - 2 for _ in range(max_levels))
+        ub += tuple(t_bounds[1] - 1 for _ in range(max_levels))
     elif policy in (Policy.Tiering, Policy.Leveling):
         pass  # No need to add more items for classic policy
 

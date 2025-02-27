@@ -69,8 +69,8 @@ class KLSMSolver:
     def get_robust_design(
         self,
         system: System,
-        rho: float,
         workload: Workload,
+        rho: float,
         init_args: np.ndarray = np.array(
             [LAMBDA_DEFAULT, ETA_DEFAULT, H_DEFAULT, T_DEFAULT, K_DEFAULT]
         ),
@@ -82,6 +82,7 @@ class KLSMSolver:
             "method": "SLSQP",
             "bounds": get_bounds(
                 bounds=self.bounds,
+                policy=Policy.Kapacity,
                 system=system,
                 robust=True,
             ),
