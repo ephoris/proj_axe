@@ -5,6 +5,27 @@ import torch
 from reinmax import reinmax
 
 
+class ResidualBlock(nn.Module):
+    def __init__(
+        self, num_neurons: int, num_layers: int, activation: nn.Module
+    ) -> None:
+        super().__init__()
+        hidden = []
+        for _ in range(num_layers):
+            hidden.append(nn.Linear(num_neurons, num_neurons))
+            hidden.append(activation)
+        self.hidden = nn.Sequential(*hidden)
+
+    def forward(self, inputs: Tensor) -> Tensor:
+        out = self.hidden(inputs)
+        return out + inputs
+
+
+class ExpActivation(nn.Module):
+    def forward(self, inputs: Tensor) -> Tensor:
+        return torch.log(1 + torch.exp(inputs))
+
+
 class KapDecision(nn.Module):
     def __init__(
         self,
@@ -56,22 +77,21 @@ class KapLSMRobustTuner(nn.Module):
 
         self.in_norm = norm_layer(num_feats)
         self.in_layer = nn.Linear(num_feats, hidden_width)
-        self.relu = nn.ReLU(inplace=True)
+        self.hidden = ResidualBlock(hidden_width, hidden_length, nn.ReLU())
         self.dropout = nn.Dropout(p=dropout_percentage)
-        hidden = []
-        for _ in range(hidden_length):
-            hidden.append(nn.Linear(hidden_width, hidden_width))
-        self.hidden = nn.Sequential(*hidden)
-
-        self.k_path = nn.Linear(hidden_width, hidden_width)
-        self.t_path = nn.Linear(hidden_width, hidden_width)
-        self.bits_path = nn.Linear(hidden_width, hidden_width)
-
+        self.k_path = ResidualBlock(hidden_width, 1, nn.ReLU())
         self.k_decision = KapDecision(hidden_width, capacity_range, num_kap)
-        self.t_decision = nn.Linear(hidden_width, capacity_range)
-        self.bits_decision = nn.Linear(hidden_width, 1)
-        self.eta_decision = nn.Linear(hidden_width, 1)
-        self.lamb_decision = nn.Linear(hidden_width, 1)
+        self.t_decision = nn.Sequential(
+            ResidualBlock(hidden_width, 1, nn.ReLU()),
+            nn.Linear(hidden_width, capacity_range)
+        )
+        self.bits_decision = nn.Sequential(
+            ResidualBlock(hidden_width, 1, nn.ReLU()),
+            nn.Linear(hidden_width, 1),
+            ExpActivation()
+        )
+        self.lagrangian_mu = nn.Linear(num_feats, 2)
+        self.lagrangian_sigma = nn.Linear(num_feats, 2)
 
         self.capacity_range = capacity_range
         self.num_feats = num_feats
@@ -115,33 +135,20 @@ class KapLSMRobustTuner(nn.Module):
 
         return mask, default_values
 
-    def _forward_impl(self, x: Tensor, temp=1e-3, hard=False) -> Tensor:
-        # print(f'input: {x=}')
-        out = self.in_norm(x)
-        # print(f'in_norm: {out=}')
-        # print(f'in_norm.weight {self.in_norm.weight=}')
-        # print(f'in_norm.bias {self.in_norm.bias=}')
-        out = self.in_layer(out)
-        # print(f'in_layer: {out=}')
-        out = self.relu(out)
-        # print(f'relu: {out=}')
+    def forward(self, x: Tensor, temp=1e-3, hard=False) -> Tensor:
+        normed_x = self.in_norm(x)
+        out = self.in_layer(normed_x)
         out = self.dropout(out)
-        # print(f'droput: {out=}')
         out = self.hidden(out)
-        # print(f'hidden: {out=}')
 
-        bits_out = self.bits_path(out)
-        bits = self.bits_decision(bits_out)
-
-        t_out = self.t_path(out)
-        t = self.t_decision(t_out)
+        bits = self.bits_decision(out)
+        t = self.t_decision(out)
         if self.categorical_mode == "reinmax":
             t, _ = reinmax(t, tau=temp)
         else:  # categorical_mode == 'gumbel'
             t = nn.functional.gumbel_softmax(t, tau=temp, hard=hard)
-
-        k_out = self.k_path(out)
-        k = self.k_decision(k_out, temp=temp, hard=hard)
+        k = self.k_path(out)
+        k = self.k_decision(k, temp=temp, hard=hard)
 
         max_levels = self.calc_max_level(x, bits, t) - 1
         max_levels = max_levels.to(torch.long)
@@ -151,14 +158,11 @@ class KapLSMRobustTuner(nn.Module):
 
         k = torch.flatten(k, start_dim=1)
 
-        eta = self.eta_decision(out)
-        lamb = self.lamb_decision(out)
+        epsilon = torch.normal(0, 1, size=(x.shape[0], 2)).to(x.device)
+        mu = self.lagrangian_mu(normed_x)
+        sigma = self.lagrangian_sigma(normed_x)
+        lagrangians = mu + (epsilon * sigma)
 
-        out = torch.concat([eta, lamb, bits, t, k], dim=-1)
-
-        return out
-
-    def forward(self, x: Tensor, temp=1e-3, hard=False) -> Tensor:
-        out = self._forward_impl(x, temp=temp, hard=hard)
+        out = torch.concat([lagrangians, bits, t, k], dim=-1)
 
         return out

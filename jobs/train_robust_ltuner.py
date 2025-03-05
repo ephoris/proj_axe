@@ -41,8 +41,8 @@ class TrainRobustLTuner:
         self.scheduler = self._build_scheduler(self.optimizer)
         torch.set_float32_matmul_precision("high")
         self.training_data, self.validate_data = self._build_data()
-        self.train_kwargs = {"temp": 10, "hard": False}
-        self.validate_kwargs = {"temp": 0.01, "hard": True}
+        self.train_kwargs = cfg["ltuner"]["train_kwargs"]
+        self.validate_kwargs = cfg["ltuner"]["validate_kwargs"]
 
     def _build_loss_fn(self) -> torch.nn.Module:
         loss = LearnedRobustLoss(self.cfg, self.jcfg["loss_fn_path"]).to(self.device)
@@ -102,7 +102,7 @@ class TrainRobustLTuner:
         with open(os.path.join(self.jcfg["save_dir"], "axe.toml"), "w") as fid:
             toml.dump(self.cfg, fid)
 
-    def temp_step(self, decay_rate: float = 0.9, floor: float = 1):
+    def temp_step(self, decay_rate: float = 0.98, floor: float = 1):
         self.train_kwargs["temp"] *= decay_rate
         if self.train_kwargs["temp"] < floor:
             self.train_kwargs["temp"] = floor
