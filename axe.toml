@@ -121,10 +121,10 @@ overwrite_if_exists = true
 [job.train_ltuner]
 # --------------------------------------
 max_epochs = 100
-save_dir = "data/ltuner/models/robust_kaplsm_022625_1411"
+save_dir = "data/ltuner/models/robust_kaplsm_250305_1413"
 # Learned cost model is our loss, input full path to checkpoint or model file
 loss_fn_path = "data/lcm/models/kaplsm_112624_1156"
-optimizer = "Adam"
+optimizer = "AdamW"
 lr_scheduler = "CosineAnnealing"
 no_checkpoint = false
 
@@ -158,11 +158,11 @@ penalty_factor = 10
 
 # kwargs specific to LTune models during forward pass
 [ltuner.train_kwargs]
-temp = 1
+temp = 2
 hard = false
 
-[ltuner.test_kwargs]
-temp = 0.01
+[ltuner.validate_kwargs]
+temp = 1
 hard = true
 
 # -----------------------------------------------------------------------------
@@ -170,11 +170,11 @@ hard = true
 #   Model configurations
 # -----------------------------------------------------------------------------
 [ltuner.model]
-hidden_length = 3
+hidden_length = 4
 hidden_width = 64
-dropout = 0                     # dropout percentage
+dropout = 0.1                     # dropout percentage
 norm_layer = "Batch"            # batch or layer norm
-categorical_mode = "reinmax"    # reinmax or gumbel
+categorical_mode = "gumbel"    # reinmax or gumbel
 
 # =============================================================================
 # HEADER LRSCHEDULERS
