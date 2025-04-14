@@ -5,7 +5,7 @@ from torch import Tensor, nn
 import torch
 
 
-class ClassicTuner(nn.Module):
+class RobustClassicTunerSampler(nn.Module):
     def __init__(
         self,
         num_feats: int,
@@ -14,7 +14,7 @@ class ClassicTuner(nn.Module):
         hidden_width: int = 32,
         dropout_percentage: float = 0,
         categorical_mode: str = "gumbel",
-        norm_layer: Optional[Callable[..., nn.Module]] = None
+        norm_layer: Optional[Callable[..., nn.Module]] = None,
     ) -> None:
         super().__init__()
         if norm_layer is None:
@@ -32,6 +32,9 @@ class ClassicTuner(nn.Module):
         self.t_decision = nn.Linear(hidden_width, capacity_range)
         self.bits_decision = nn.Linear(hidden_width, 1)
         self.policy_decision = nn.Linear(hidden_width, 2)
+        self.lagrangian_mu = nn.Linear(num_feats, 2)
+        self.lagrangian_sigma = nn.Linear(num_feats, 2)
+        # self.lagrangians = nn.Linear(num_feats, 2)
 
         self.capacity_range = capacity_range
         self.num_feats = num_feats
@@ -39,11 +42,11 @@ class ClassicTuner(nn.Module):
 
         for module in self.modules():
             if isinstance(module, nn.Linear):
-                nn.init.xavier_normal_(module.weight)
+                nn.init.kaiming_normal_(module.weight)
 
     def _forward_impl(self, x: Tensor, temp=1e-3, hard=False) -> Tensor:
-        out = self.in_norm(x)
-        out = self.in_layer(out)
+        normed_x = self.in_norm(x)
+        out = self.in_layer(normed_x)
         out = self.relu(out)
         out = self.dropout(out)
         out = self.hidden(out)
@@ -51,14 +54,20 @@ class ClassicTuner(nn.Module):
 
         bits = self.bits_decision(out)
         t = self.t_decision(out)
+        policy = self.policy_decision(out)
         if self.categorical_mode == "reinmax":
             t, _ = reinmax(t, tau=temp)
+            policy, _ = reinmax(policy, tau=temp)
         else:  # categorical_mode == 'gumbel'
             t = nn.functional.gumbel_softmax(t, tau=temp, hard=hard)
-        policy = self.policy_decision(out)
-        policy = nn.functional.gumbel_softmax(policy, tau=temp, hard=hard)
+            policy = nn.functional.gumbel_softmax(policy, tau=temp, hard=hard)
 
-        out = torch.concat([bits, t, policy], dim=-1)
+        epsilon = torch.normal(0, 1, size=(x.shape[0], 2)).to(x.device)
+        mu = self.lagrangian_mu(normed_x)
+        sigma = self.lagrangian_sigma(normed_x)
+        lagrangians = mu + (epsilon * sigma)
+
+        out = torch.concat([lagrangians, bits, t, policy], dim=-1)
 
         return out
 

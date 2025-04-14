@@ -5,6 +5,10 @@ from axe.lsm.types import Policy
 from axe.ltuner.data.schema import LTunerDataSchema
 from axe.ltuner.model import ClassicTuner, QLSMTuner, KapLSMTuner, YZLSMTuner
 from axe.ltuner.model.kap_robust_tuner import KapLSMRobustTuner
+from axe.ltuner.model.kap_robust_tuner_latent import KapLSMRobustTunerLatent
+from axe.ltuner.model.rc_latent import RCLatent
+from axe.ltuner.model.robust_classic_tuner import RobustClassicTuner
+from axe.ltuner.model.robust_classic_sampling import RobustClassicTunerSampler
 
 
 class LTuneModelBuilder:
@@ -39,7 +43,7 @@ class LTuneModelBuilder:
     def get_choices(self):
         return self._models.keys()
 
-    def build(self, robust: bool = False) -> torch.nn.Module:
+    def build(self, robust: bool = False, override: str = "None") -> torch.nn.Module:
         feat_list = self.schema.feat_cols()
         kwargs = {
             "num_feats": len(feat_list),
@@ -50,12 +54,20 @@ class LTuneModelBuilder:
             "norm_layer": self.norm_layer,
         }
         model_class = self._models.get(self.schema.policy, None)
+        if override == "RobustClassicTunerSampler":
+            return RobustClassicTunerSampler(**kwargs)
+        elif override == "RobustClassicTuner":
+            return RobustClassicTuner(**kwargs)
+        elif override == "RCLatent":
+            return RCLatent(**kwargs)
+
         if model_class is None:
             raise NotImplementedError("Tuner for LSM Design not implemented.")
         if model_class is KapLSMTuner:
             kwargs["num_kap"] = self.max_levels
             kwargs["categorical_mode"] = self.categorical_mode
             if robust:
+                # return KapLSMRobustTunerLatent(**kwargs)
                 return KapLSMRobustTuner(**kwargs)
 
         model = model_class(**kwargs)
